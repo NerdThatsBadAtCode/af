@@ -168,8 +168,8 @@ noremap l k
 noremap ; l
 noremap h ;
 
-noremap <A-j> <C-w>h
-noremap <A-k> <C-w>j
-noremap <A-l> <C-w>k
-noremap <A-;> <C-w>l
+noremap <C-j> <C-w>h
+noremap <C-k> <C-w>j
+noremap <C-l> <C-w>k
+noremap <C-;> <C-w>l
 "------------------------------------------------------------
