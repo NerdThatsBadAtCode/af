@@ -1,0 +1,2495 @@
+#+title: Emacs From Scratch Configuration
+#+PROPERTY: header-args:emacs-lisp :tangle ./init.el :mkdirp yes
+
+* Welcome!
+
+This is the configuration we've been building in the *Emacs From Scratch* series, now written as an Org Mode document.  This file generates [[file:init.el][init.el]] which can be loaded by Emacs at startup.
+
+*NOTE:* If you run into any issues while using this configuration, please [[https://github.com/daviwil/emacs-from-scratch/issues/new][file an issue]] or send me an email at =david at systemcrafters.cc=.
+
+The following variables are used to tweak some of the configuration pieces for use in the live streams so you might need to adjust them for your local machine if you try to use this configuration directly.
+
+#+begin_src emacs-lisp
+
+  ;; NOTE: init.el is now generated from Emacs.org.  Please edit that file
+  ;;       in Emacs and init.el will be generated automatically!
+
+  ;; You will most likely need to adjust this font size for your system!
+  (defvar efs/default-font-size 100)
+  (defvar efs/default-variable-font-size 110)
+
+  ;; Make frame transparency overridable
+  (defvar efs/frame-transparency '(90 . 80))
+
+#+end_src
+
+* Tips for Use
+
+In this document I've added links in many places that lead you to documentation for the various packages we use.  If you're looking at this file in Emacs, you can put your cursor on a link and press =C-c C-o= or run =M-x org-open-at-point= to open the link in your web browser.
+
+* Startup Performance
+
+#+begin_src emacs-lisp
+
+  ;; The default is 800 kilobytes.  Measured in bytes.
+  (setq gc-cons-threshold (* 50 1000 1000))
+
+  (defun efs/display-startup-time ()
+    (message "Emacs loaded in %s with %d garbage collections."
+             (format "%.2f seconds"
+                     (float-time
+                       (time-subtract after-init-time before-init-time)))
+             gcs-done))
+
+  (add-hook 'emacs-startup-hook #'efs/display-startup-time)
+
+#+end_src
+
+* Package System Setup
+
+Emacs has a built in package manager but it doesn't make it easy to automatically install packages on a new system the first time you pull down your configuration.  [[https://github.com/jwiegley/use-package][use-package]] is a really helpful package used in this configuration to make it a lot easier to automate the installation and configuration of everything else we use.
+
+#+begin_src emacs-lisp
+
+  ;; Initialize package sources
+  (require 'package)
+
+  (setq package-archives '(("melpa" . "https://melpa.org/packages/")
+                           ("org" . "https://orgmode.org/elpa/")
+                           ("elpa" . "https://elpa.gnu.org/packages/")))
+
+  (package-initialize)
+  (unless package-archive-contents
+    (package-refresh-contents))
+
+    ;; Initialize use-package on non-Linux platforms
+  (unless (package-installed-p 'use-package)
+    (package-install 'use-package))
+
+  (require 'use-package)
+  (setq use-package-always-ensure t)
+
+#+end_src
+
+** Automatic Package Updates
+
+The auto-package-update package helps us keep our Emacs packages up to date!  It will prompt you after a certain number of days either at startup or at a specific time of day to remind you to update your packages.
+
+You can also use =M-x auto-package-update-now= to update right now!
+
+#+begin_src emacs-lisp
+
+  (use-package auto-package-update
+    :custom
+    (auto-package-update-interval 7)
+    (auto-package-update-prompt-before-update t)
+    (auto-package-update-hide-results t)
+    :config
+    (auto-package-update-maybe)
+    (auto-package-update-at-time "09:00"))
+
+#+end_src
+
+* Keep Folders Clean
+
+We use the [[https://github.com/emacscollective/no-littering/blob/master/no-littering.el][no-littering]] package to keep folders where we edit files and the Emacs configuration folder clean!  It knows about a wide variety of variables for built in Emacs features as well as those from community packages so it can be much easier than finding and setting these variables yourself.
+
+#+begin_src emacs-lisp
+
+  ;; NOTE: If you want to move everything out of the ~/.emacs.d folder
+  ;; reliably, set `user-emacs-directory` before loading no-littering!
+  ;(setq user-emacs-directory "~/.cache/emacs")
+
+  (use-package no-littering)
+
+  ;; no-littering doesn't set this by default so we must place
+  ;; auto save files in the same path as it uses for sessions
+  (setq auto-save-file-name-transforms
+        `((".*" ,(no-littering-expand-var-file-name "auto-save/") t)))
+
+#+end_src
+
+* Basic UI Configuration
+
+This section configures basic UI settings that remove unneeded elements to make Emacs look a lot more minimal and modern.  If you're just getting started in Emacs, the menu bar might be helpful so you can remove the =(menu-bar-mode -1)= line if you'd like to still see that.
+
+#+begin_src emacs-lisp
+
+  (setq inhibit-startup-message t)
+
+  (scroll-bar-mode -1)        ; Disable visible scrollbar
+  (tool-bar-mode -1)          ; Disable the toolbar
+  (tooltip-mode -1)           ; Disable tooltips
+  (set-fringe-mode 10)        ; Give some breathing room
+
+  (menu-bar-mode -1)            ; Disable the menu bar
+
+  ;; Set up the visible bell
+  (setq visible-bell t)
+
+  (column-number-mode)
+  (global-display-line-numbers-mode t)
+
+  ;; Set frame transparency
+  (set-frame-parameter (selected-frame) 'alpha efs/frame-transparency)
+  (add-to-list 'default-frame-alist `(alpha . ,efs/frame-transparency))
+  (set-frame-parameter (selected-frame) 'fullscreen 'maximized)
+  (add-to-list 'default-frame-alist '(fullscreen . maximized))
+
+  ;; Disable line numbers for some modes
+  (dolist (mode '(term-mode-hook
+                  shell-mode-hook
+                  treemacs-mode-hook
+                  eshell-mode-hook))
+    (add-hook mode (lambda () (display-line-numbers-mode 0))))
+
+#+end_src
+
+** Font Configuration
+
+I am using the [[https://github.com/tonsky/FiraCode][Fira Code]] and [[https://fonts.google.com/specimen/Cantarell][Cantarell]] fonts for this configuration which will more than likely need to be installed on your machine.  Both can usually be found in the various Linux distro package managers or downloaded from the links above.
+
+#+begin_src emacs-lisp
+
+(set-face-attribute 'default nil :font "Fira Code Retina" :height efs/default-font-size)
+
+;; Set the fixed pitch face
+(set-face-attribute 'fixed-pitch nil :font "Fira Code Retina" :height efs/default-font-size)
+
+;; Set the variable pitch face
+(set-face-attribute 'variable-pitch nil :font "Cantarell" :height efs/default-variable-font-size :weight 'regular)
+
+#+end_src
+
+* Keybinding Configuration
+
+This configuration uses [[https://evil.readthedocs.io/en/latest/index.html][evil-mode]] for a Vi-like modal editing experience.  [[https://github.com/noctuid/general.el][general.el]] is used for easy keybinding configuration that integrates well with which-key.  [[https://github.com/emacs-evil/evil-collection][evil-collection]] is used to automatically configure various Emacs modes with Vi-like keybindings for evil-mode.
+
+#+begin_src emacs-lisp
+
+  ;; Make ESC quit prompts
+  (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
+
+  (use-package general
+    :after evil
+    :config
+    (general-create-definer efs/leader-keys
+      :keymaps '(normal insert visual emacs)
+      :prefix "SPC"
+      :global-prefix "C-SPC")
+
+    (efs/leader-keys
+      "t"  '(:ignore t :which-key "toggles")
+      "tt" '(counsel-load-theme :which-key "choose theme")
+      "fde" '(lambda () (interactive) (find-file (expand-file-name "~/.emacs.d/Emacs.org")))))
+
+  (use-package evil
+    :init
+    (setq evil-want-integration t)
+    (setq evil-want-keybinding nil)
+    (setq evil-want-C-u-scroll t)
+    (setq evil-want-C-i-jump nil)
+    :config
+    (evil-mode 1)
+    (define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
+    (define-key evil-insert-state-map (kbd "C-h") 'evil-delete-backward-char-and-join)
+
+    ;; Use visual line motions even outside of visual-line-mode buffers
+    (evil-global-set-key 'motion "j" 'evil-next-visual-line)
+    (evil-global-set-key 'motion "k" 'evil-previous-visual-line)
+
+    (evil-set-initial-state 'messages-buffer-mode 'normal)
+    (evil-set-initial-state 'dashboard-mode 'normal))
+
+  (use-package evil-collection
+    :after evil
+    :config
+    (evil-collection-init))
+  (use-package evil-tutor)
+
+#+end_src
+
+* UI Configuration
+** Command Log Mode
+
+[[https://github.com/lewang/command-log-mode][command-log-mode]] is useful for displaying a panel showing each key binding you use in a panel on the right side of the frame.  Great for live streams and screencasts!
+
+#+begin_src emacs-lisp
+
+  (use-package command-log-mode
+    :commands command-log-mode)
+
+#+end_src
+
+** Color Theme
+
+[[https://github.com/hlissner/emacs-doom-themes][doom-themes]] is a great set of themes with a lot of variety and support for many different Emacs modes.  Taking a look at the [[https://github.com/hlissner/emacs-doom-themes/tree/screenshots][screenshots]] might help you decide which one you like best.  You can also run =M-x counsel-load-theme= to choose between them easily.
+
+#+begin_src emacs-lisp
+
+(use-package doom-themes
+  :init (load-theme 'doom-challenger-deep t))
+
+#+end_src
+
+** Better Modeline
+
+[[https://github.com/seagle0128/doom-modeline][doom-modeline]] is a very attractive and rich (yet still minimal) mode line configuration for Emacs.  The default configuration is quite good but you can check out the [[https://github.com/seagle0128/doom-modeline#customize][configuration options]] for more things you can enable or disable.
+
+*NOTE:* The first time you load your configuration on a new machine, you'll need to run `M-x all-the-icons-install-fonts` so that mode line icons display correctly.
+
+#+begin_src emacs-lisp
+
+(use-package all-the-icons)
+
+(use-package doom-modeline
+  :init (doom-modeline-mode 1)
+  :custom ((doom-modeline-height 10)))
+
+#+end_src
+
+** Which Key
+
+[[https://github.com/justbur/emacs-which-key][which-key]] is a useful UI panel that appears when you start pressing any key binding in Emacs to offer you all possible completions for the prefix.  For example, if you press =C-c= (hold control and press the letter =c=), a panel will appear at the bottom of the frame displaying all of the bindings under that prefix and which command they run.  This is very useful for learning the possible key bindings in the mode of your current buffer.
+
+#+begin_src emacs-lisp
+
+  (use-package which-key
+    :defer 0
+    :diminish which-key-mode
+    :config
+    (which-key-mode)
+    (setq which-key-idle-delay 1))
+
+#+end_src
+
+** Ivy and Counsel
+
+[[https://oremacs.com/swiper/][Ivy]] is an excellent completion framework for Emacs.  It provides a minimal yet powerful selection menu that appears when you open files, switch buffers, and for many other tasks in Emacs.  Counsel is a customized set of commands to replace `find-file` with `counsel-find-file`, etc which provide useful commands for each of the default completion commands.
+
+[[https://github.com/Yevgnen/ivy-rich][ivy-rich]] adds extra columns to a few of the Counsel commands to provide more information about each item.
+
+#+begin_src emacs-lisp
+
+  (use-package ivy
+    :diminish
+    :bind (("C-s" . swiper)
+           :map ivy-minibuffer-map
+           ("TAB" . ivy-alt-done)
+           ("C-l" . ivy-alt-done)
+           ("C-j" . ivy-next-line)
+           ("C-k" . ivy-previous-line)
+           :map ivy-switch-buffer-map
+           ("C-k" . ivy-previous-line)
+           ("C-l" . ivy-done)
+           ("C-d" . ivy-switch-buffer-kill)
+           :map ivy-reverse-i-search-map
+           ("C-k" . ivy-previous-line)
+           ("C-d" . ivy-reverse-i-search-kill))
+    :config
+    (ivy-mode 1))
+
+  (use-package ivy-rich
+    :after ivy
+    :init
+    (ivy-rich-mode 1))
+
+  (use-package counsel
+    :bind (("C-M-j" . 'counsel-switch-buffer)
+           :map minibuffer-local-map
+           ("C-r" . 'counsel-minibuffer-history))
+    :custom
+    (counsel-linux-app-format-function #'counsel-linux-app-format-function-name-only)
+    :config
+    (counsel-mode 1))
+
+  ;;Make that dumbass ^ go away
+  (setq ivy-initial-inputs-alist nil)
+
+#+end_src
+
+*** Improved Candidate Sorting with prescient.el
+
+prescient.el provides some helpful behavior for sorting Ivy completion candidates based on how recently or frequently you select them.  This can be especially helpful when using =M-x= to run commands that you don't have bound to a key but still need to access occasionally.
+
+This Prescient configuration is optimized for use in System Crafters videos and streams, check out the [[https://youtu.be/T9kygXveEz0][video on prescient.el]] for more details on how to configure it!
+
+#+begin_src emacs-lisp
+
+  (use-package ivy-prescient
+    :after counsel
+    :custom
+    (ivy-prescient-enable-filtering nil)
+    :config
+    ;; Uncomment the following line to have sorting remembered across sessions!
+    ;(prescient-persist-mode 1)
+    (ivy-prescient-mode 1))
+
+#+end_src
+
+** Helpful Help Commands
+
+[[https://github.com/Wilfred/helpful][Helpful]] adds a lot of very helpful (get it?) information to Emacs' =describe-= command buffers.  For example, if you use =describe-function=, you will not only get the documentation about the function, you will also see the source code of the function and where it gets used in other places in the Emacs configuration.  It is very useful for figuring out how things work in Emacs.
+
+#+begin_src emacs-lisp
+
+  (use-package helpful
+    :commands (helpful-callable helpful-variable helpful-command helpful-key)
+    :custom
+    (counsel-describe-function-function #'helpful-callable)
+    (counsel-describe-variable-function #'helpful-variable)
+    :bind
+    ([remap describe-function] . counsel-describe-function)
+    ([remap describe-command] . helpful-command)
+    ([remap describe-variable] . counsel-describe-variable)
+    ([remap describe-key] . helpful-key))
+
+#+end_src
+
+** Text Scaling
+
+This is an example of using [[https://github.com/abo-abo/hydra][Hydra]] to design a transient key binding for quickly adjusting the scale of the text on screen.  We define a hydra that is bound to =C-s t s= and, once activated, =j= and =k= increase and decrease the text scale.  You can press any other key (or =f= specifically) to exit the transient key map.
+
+#+begin_src emacs-lisp
+
+  (use-package hydra
+    :defer t)
+
+  (defhydra hydra-text-scale (:timeout 4)
+    "scale text"
+    ("j" text-scale-increase "in")
+    ("k" text-scale-decrease "out")
+    ("f" nil "finished" :exit t))
+
+  (efs/leader-keys
+    "ts" '(hydra-text-scale/body :which-key "scale text"))
+
+#+end_src
+
+** Dashboard
+*** Configure Cool Dashboard
+#+begin_src emacs-lisp
+  (use-package dashboard
+    :init      ;; tweak dashboard config before loading it
+    (setq dashboard-set-heading-icons t)
+    (setq dashboard-set-file-icons t)
+    (setq dashboard-banner-logo-title "Nothing Good Happens After Midnight")
+    ;;(setq dashboard-startup-banner 'logo) ;; use standard emacs logo as banner
+    (setq dashboard-startup-banner "~/.emacs.d/emacs-dash.png")  ;; use custom image as banner
+    (setq dashboard-center-content t) ;; set to 't' for centered content
+    (setq dashboard-items '((recents . 5)
+                            (agenda . 5 )
+                            (bookmarks . 3)
+                            (projects . 3)
+                            (registers . 3)))
+    :config
+    (dashboard-setup-startup-hook)
+    (dashboard-modify-heading-icons '((recents . "file-text")
+                                      (bookmarks . "book"))))
+#+end_src
+*** Make Sure Emacs Shows the Dashboard on Startup
+#+begin_src emacs-lisp
+(setq initial-buffer-choice (lambda () (get-buffer "*dashboard*")))
+#+end_src
+
+* Org Mode
+
+[[https://orgmode.org/][Org Mode]] is one of the hallmark features of Emacs.  It is a rich document editor, project planner, task and time tracker, blogging engine, and literate coding utility all wrapped up in one package.
+
+** Better Font Faces
+
+The =efs/org-font-setup= function configures various text faces to tweak the sizes of headings and use variable width fonts in most cases so that it looks more like we're editing a document in =org-mode=.  We switch back to fixed width (monospace) fonts for code blocks and tables so that they display correctly.
+
+#+begin_src emacs-lisp
+
+  (defun efs/org-font-setup ()
+    ;; Replace list hyphen with dot
+    (font-lock-add-keywords 'org-mode
+                            '(("^ *\\([-]\\) "
+                               (0 (prog1 () (compose-region (match-beginning 1) (match-end 1) "•"))))))
+
+    ;; Set faces for heading levels
+    (dolist (face '((org-level-1 . 1.2)
+                    (org-level-2 . 1.1)
+                    (org-level-3 . 1.05)
+                    (org-level-4 . 1.0)
+                    (org-level-5 . 1.1)
+                    (org-level-6 . 1.1)
+                    (org-level-7 . 1.1)
+                    (org-level-8 . 1.1)))
+      (set-face-attribute (car face) nil :font "Overpass Nerd Font" :weight 'regular :height (cdr face)))
+
+    ;; Ensure that anything that should be fixed-pitch in Org files appears that way
+    (set-face-attribute 'org-block nil    :foreground nil :inherit 'fixed-pitch)
+    (set-face-attribute 'org-table nil    :inherit 'fixed-pitch)
+    (set-face-attribute 'org-formula nil  :inherit 'fixed-pitch)
+    (set-face-attribute 'org-code nil     :inherit '(shadow fixed-pitch))
+    (set-face-attribute 'org-table nil    :inherit '(shadow fixed-pitch))
+    (set-face-attribute 'org-verbatim nil :inherit '(shadow fixed-pitch))
+    (set-face-attribute 'org-special-keyword nil :inherit '(font-lock-comment-face fixed-pitch))
+    (set-face-attribute 'org-meta-line nil :inherit '(font-lock-comment-face fixed-pitch))
+    (set-face-attribute 'org-checkbox nil  :inherit 'fixed-pitch)
+    (set-face-attribute 'line-number nil :inherit 'fixed-pitch)
+    (set-face-attribute 'line-number-current-line nil :inherit 'fixed-pitch))
+
+#+end_src
+
+** Basic Config
+This section contains the basic configuration for =org-mode= plus the configuration for Org agendas and capture templates.  There's a lot to unpack in here so I'd recommend watching the videos for [[https://youtu.be/VcgjTEa0kU4][Part 5]] and [[https://youtu.be/PNE-mgkZ6HM][Part 6]] for a full explanation.
+
+#+begin_src emacs-lisp
+
+  (defun efs/org-mode-setup ()
+    (org-indent-mode)
+    (variable-pitch-mode 1)
+    (visual-line-mode 1))
+
+  (use-package org
+    :pin org
+    :commands (org-capture org-agenda)
+    :hook (org-mode . efs/org-mode-setup)
+    :config
+    (setq org-ellipsis " ▾")
+
+    (setq org-agenda-start-with-log-mode t)
+    (setq org-log-done 'time)
+    (setq org-log-into-drawer t)
+
+    (setq org-agenda-files
+          '("~/dev/ORG/OrgOrganizer/Tasks.org"
+            "~/dev/ORG/OrgOrganizer/Habits.org"
+            "~/dev/ORG/OrgOrganizer/Birthdays.org"))
+
+    (require 'org-habit)
+    (add-to-list 'org-modules 'org-habit)
+    (setq org-habit-graph-column 60)
+
+    (setq org-todo-keywords
+      '((sequence "TODO(t)" "NEXT(n)" "|" "DONE(d!)")
+        (sequence "BACKLOG(b)" "PLAN(p)" "READY(r)" "ACTIVE(a)" "REVIEW(v)" "WAIT(w@/!)" "HOLD(h)" "|" "COMPLETED(c)" "CANC(k@)")))
+
+    (setq org-refile-targets
+      '(("Archive.org" :maxlevel . 1)
+        ("Tasks.org" :maxlevel . 1)))
+
+    ;; Save Org buffers after refiling!
+    (advice-add 'org-refile :after 'org-save-all-org-buffers)
+
+    (setq org-tag-alist
+      '((:startgroup)
+         ; Put mutually exclusive tags here
+         (:endgroup)
+         ("@errand" . ?E)
+         ("@home" . ?H)
+         ("@work" . ?W)
+         ("agenda" . ?a)
+         ("planning" . ?p)
+         ("publish" . ?P)
+         ("batch" . ?b)
+         ("note" . ?n)
+         ("idea" . ?i)))
+
+    ;; Configure custom agenda views
+    (setq org-agenda-custom-commands
+     '(("d" "Dashboard"
+       ((agenda "" ((org-deadline-warning-days 31)))
+        (todo "NEXT"
+          ((org-agenda-overriding-header "Next Tasks")))
+        (tags-todo "agenda/ACTIVE" ((org-agenda-overriding-header "Active Projects")))))
+
+      ("n" "Next Tasks"
+       ((todo "NEXT"
+          ((org-agenda-overriding-header "Next Tasks")))))
+
+      ("W" "Work Tasks" tags-todo "+work-email")
+
+      ;; Low-effort next actions
+      ("e" tags-todo "+TODO=\"NEXT\"+Effort<15&+Effort>0"
+       ((org-agenda-overriding-header "Low Effort Tasks")
+        (org-agenda-max-todos 20)
+        (org-agenda-files org-agenda-files)))
+
+      ("w" "Workflow Status"
+       ((todo "WAIT"
+              ((org-agenda-overriding-header "Waiting on External")
+               (org-agenda-files org-agenda-files)))
+        (todo "REVIEW"
+              ((org-agenda-overriding-header "In Review")
+               (org-agenda-files org-agenda-files)))
+        (todo "PLAN"
+              ((org-agenda-overriding-header "In Planning")
+               (org-agenda-todo-list-sublevels nil)
+               (org-agenda-files org-agenda-files)))
+        (todo "BACKLOG"
+              ((org-agenda-overriding-header "Project Backlog")
+               (org-agenda-todo-list-sublevels nil)
+               (org-agenda-files org-agenda-files)))
+        (todo "READY"
+              ((org-agenda-overriding-header "Ready for Work")
+               (org-agenda-files org-agenda-files)))
+        (todo "ACTIVE"
+              ((org-agenda-overriding-header "Active Projects")
+               (org-agenda-files org-agenda-files)))
+        (todo "COMPLETED"
+              ((org-agenda-overriding-header "Completed Projects")
+               (org-agenda-files org-agenda-files)))
+        (todo "CANC"
+              ((org-agenda-overriding-header "Cancelled Projects")
+               (org-agenda-files org-agenda-files)))))))
+
+    (setq org-capture-templates
+      `(("t" "Tasks / Projects")
+        ("tt" "Task" entry (file+olp "~/dev/ORG/OrgOrganizer/Tasks.org" "Inbox")
+             "* TODO %?\n  %U\n  %a\n  %i" :empty-lines 1)
+
+        ("j" "Journal Entries")
+        ("jj" "Journal" entry
+             (file+olp+datetree "~/dev/ORG/OrgOrganizer/Journal.org")
+             "\n* %<%I:%M %p> - Journal :journal:\n\n%?\n\n"
+             ;; ,(dw/read-file-as-string "~/Notes/Templates/Daily.org")
+             :clock-in :clock-resume
+             :empty-lines 1)
+        ("jm" "Meeting" entry
+             (file+olp+datetree "~/dev/ORG/OrgOrganizer/Journal.org")
+             "* %<%I:%M %p> - %a :meetings:\n\n%?\n\n"
+             :clock-in :clock-resume
+             :empty-lines 1)
+
+        ("w" "Workflows")
+        ("we" "Checking Email" entry (file+olp+datetree "~/dev/ORG/OrgOrganizer/Journal.org")
+             "* Checking Email :email:\n\n%?" :clock-in :clock-resume :empty-lines 1)
+
+        ("m" "Metrics Capture")
+        ("mw" "Weight" table-line (file+headline "~/dev/ORG/OrgOrganizer/Metrics.org" "Weight")
+         "| %U | %^{Weight} | %^{Notes} |" :kill-buffer t)))
+
+    (define-key global-map (kbd "C-c j")
+      (lambda () (interactive) (org-capture nil "jj")))
+
+    (efs/org-font-setup))
+
+#+end_src
+
+*** Nicer Heading Bullets
+
+[[https://github.com/sabof/org-bullets][org-bullets]] replaces the heading stars in =org-mode= buffers with nicer looking characters that you can control.  Another option for this is [[https://github.com/integral-dw/org-superstar-mode][org-superstar-mode]] which we may cover in a later video.
+
+#+begin_src emacs-lisp
+
+  (use-package org-bullets
+    :hook (org-mode . org-bullets-mode)
+    :custom
+    (org-bullets-bullet-list '("◉" "○" "●" "○" "●" "○" "●")))
+
+#+end_src
+
+*** Center Org Buffers
+
+We use [[https://github.com/joostkremers/visual-fill-column][visual-fill-column]] to center =org-mode= buffers for a more pleasing writing experience as it centers the contents of the buffer horizontally to seem more like you are editing a document.  This is really a matter of personal preference so you can remove the block below if you don't like the behavior.
+
+#+begin_src emacs-lisp
+
+  (defun efs/org-mode-visual-fill ()
+    (setq visual-fill-column-width 100
+          visual-fill-column-center-text t)
+    (visual-fill-column-mode 1))
+
+  (use-package visual-fill-column
+    :hook (org-mode . efs/org-mode-visual-fill))
+
+#+end_src
+
+** Configure Babel Languages
+
+To execute or export code in =org-mode= code blocks, you'll need to set up =org-babel-load-languages= for each language you'd like to use.  [[https://orgmode.org/worg/org-contrib/babel/languages.html][This page]] documents all of the languages that you can use with =org-babel=.
+
+#+begin_src emacs-lisp
+
+      (with-eval-after-load 'org
+        (org-babel-do-load-languages
+            'org-babel-load-languages
+            '((emacs-lisp . t)
+            (python . t)
+            (shell . t)))
+  
+
+        (push '("conf-unix" . conf-unix) org-src-lang-modes))
+
+#+end_src
+
+** Structure Templates
+
+Org Mode's [[https://orgmode.org/manual/Structure-Templates.html][structure templates]] feature enables you to quickly insert code blocks into your Org files in combination with =org-tempo= by typing =<= followed by the template name like =el= or =py= and then press =TAB=.  For example, to insert an empty =emacs-lisp= block below, you can type =<el= and press =TAB= to expand into such a block.
+
+You can add more =src= block templates below by copying one of the lines and changing the two strings at the end, the first to be the template name and the second to contain the name of the language [[https://orgmode.org/worg/org-contrib/babel/languages.html][as it is known by Org Babel]].
+
+#+begin_src emacs-lisp
+
+  (with-eval-after-load 'org
+    ;; This is needed as of Org 9.2
+    (require 'org-tempo)
+
+    (add-to-list 'org-structure-template-alist '("sh" . "src shell"))
+    (add-to-list 'org-structure-template-alist '("el" . "src emacs-lisp"))
+    (add-to-list 'org-structure-template-alist '("py" . "src python")))
+
+#+end_src
+
+** Auto-tangle Configuration Files
+
+This snippet adds a hook to =org-mode= buffers so that =efs/org-babel-tangle-config= gets executed each time such a buffer gets saved.  This function checks to see if the file being saved is the Emacs.org file you're looking at right now, and if so, automatically exports the configuration here to the associated output files.
+
+#+begin_src emacs-lisp
+
+  ;; Automatically tangle our Emacs.org config file when we save it
+  (defun efs/org-babel-tangle-config ()
+    (when (string-equal (file-name-directory (buffer-file-name))
+                        (expand-file-name user-emacs-directory))
+      ;; Dynamic scoping to the rescue
+      (let ((org-confirm-babel-evaluate nil))
+        (org-babel-tangle))))
+
+  (add-hook 'org-mode-hook (lambda () (add-hook 'after-save-hook #'efs/org-babel-tangle-config)))
+
+#+end_src
+
+* Development
+** Languages
+*** IDE Features with lsp-mode
+
+**** lsp-mode
+
+We use the excellent [[https://emacs-lsp.github.io/lsp-mode/][lsp-mode]] to enable IDE-like functionality for many different programming languages via "language servers" that speak the [[https://microsoft.github.io/language-server-protocol/][Language Server Protocol]].  Before trying to set up =lsp-mode= for a particular language, check out the [[https://emacs-lsp.github.io/lsp-mode/page/languages/][documentation for your language]] so that you can learn which language servers are available and how to install them.
+
+The =lsp-keymap-prefix= setting enables you to define a prefix for where =lsp-mode='s default keybindings will be added.  I *highly recommend* using the prefix to find out what you can do with =lsp-mode= in a buffer.
+
+The =which-key= integration adds helpful descriptions of the various keys so you should be able to learn a lot just by pressing =C-c l= in a =lsp-mode= buffer and trying different things that you find there.
+
+#+begin_src emacs-lisp
+
+(defun efs/lsp-mode-setup ()
+(setq lsp-headerline-breadcrumb-segments '(path-up-to-project file symbols))
+(lsp-headerline-breadcrumb-mode))
+
+(use-package lsp-mode
+:commands (lsp lsp-deferred)
+:hook (lsp-mode . efs/lsp-mode-setup)
+:init
+(setq lsp-keymap-prefix "C-c l")  ;; Or 'C-l', 's-l'
+:config
+(lsp-enable-which-key-integration t))
+
+#+end_src
+
+**** lsp-ui
+
+[[https://emacs-lsp.github.io/lsp-ui/][lsp-ui]] is a set of UI enhancements built on top of =lsp-mode= which make Emacs feel even more like an IDE.  Check out the screenshots on the =lsp-ui= homepage (linked at the beginning of this paragraph) to see examples of what it can do.
+
+#+begin_src emacs-lisp
+
+(use-package lsp-ui
+:hook (lsp-mode . lsp-ui-mode)
+:custom
+(lsp-ui-doc-position 'bottom))
+
+#+end_src
+
+**** lsp-treemacs
+
+[[https://github.com/emacs-lsp/lsp-treemacs][lsp-treemacs]] provides nice tree views for different aspects of your code like symbols in a file, references of a symbol, or diagnostic messages (errors and warnings) that are found in your code.
+
+Try these commands with =M-x=:
+
+- =lsp-treemacs-symbols= - Show a tree view of the symbols in the current file
+- =lsp-treemacs-references= - Show a tree view for the references of the symbol under the cursor
+- =lsp-treemacs-error-list= - Show a tree view for the diagnostic messages in the project
+
+This package is built on the [[https://github.com/Alexander-Miller/treemacs][treemacs]] package which might be of some interest to you if you like to have a file browser at the left side of your screen in your editor.
+
+#+begin_src emacs-lisp
+
+(use-package lsp-treemacs
+:after lsp)
+
+#+end_src
+
+**** lsp-ivy
+
+[[https://github.com/emacs-lsp/lsp-ivy][lsp-ivy]] integrates Ivy with =lsp-mode= to make it easy to search for things by name in your code.  When you run these commands, a prompt will appear in the minibuffer allowing you to type part of the name of a symbol in your code.  Results will be populated in the minibuffer so that you can find what you're looking for and jump to that location in the code upon selecting the result.
+
+Try these commands with =M-x=:
+
+- =lsp-ivy-workspace-symbol= - Search for a symbol name in the current project workspace
+- =lsp-ivy-global-workspace-symbol= - Search for a symbol name in all active project workspaces
+
+#+begin_src emacs-lisp
+
+(use-package lsp-ivy
+:after lsp)
+
+#+end_src
+
+*** Debugging with dap-mode
+
+[[https://emacs-lsp.github.io/dap-mode/][dap-mode]] is an excellent package for bringing rich debugging capabilities to Emacs via the [[https://microsoft.github.io/debug-adapter-protocol/][Debug Adapter Protocol]].  You should check out the [[https://emacs-lsp.github.io/dap-mode/page/configuration/][configuration docs]] to learn how to configure the debugger for your language.  Also make sure to check out the documentation for the debug adapter to see what configuration parameters are available to use for your debug templates!
+
+#+begin_src emacs-lisp
+
+(use-package dap-mode
+;; Uncomment the config below if you want all UI panes to be hidden by default!
+;; :custom
+;; (lsp-enable-dap-auto-configure nil)
+;; :config
+;; (dap-ui-mode 1)
+:commands dap-debug
+:config
+;; Set up Node debugging
+(require 'dap-node)
+(dap-node-setup) ;; Automatically installs Node debug adapter if needed
+
+;; Bind `C-c l d` to `dap-hydra` for easy access
+(general-define-key
+    :keymaps 'lsp-mode-map
+    :prefix lsp-keymap-prefix
+    "d" '(dap-hydra t :wk "debugger")))
+
+#+end_src
+
+*** TypeScript
+
+This is a basic configuration for the TypeScript language so that =.ts= files activate =typescript-mode= when opened.  We're also adding a hook to =typescript-mode-hook= to call =lsp-deferred= so that we activate =lsp-mode= to get LSP features every time we edit TypeScript code.
+
+#+begin_src emacs-lisp
+
+(use-package typescript-mode
+:mode "\\.ts\\'"
+:hook (typescript-mode . lsp-deferred)
+:config
+(setq typescript-indent-level 2))
+
+#+end_src
+
+*Important note!*  For =lsp-mode= to work with TypeScript (and JavaScript) you will need to install a language server on your machine.  If you have Node.js installed, the easiest way to do that is by running the following command:
+
+#+begin_src shell :tangle no
+
+npm install -g typescript-language-server typescript
+
+#+end_src
+
+This will install the [[https://github.com/theia-ide/typescript-language-server][typescript-language-server]] and the TypeScript compiler package.
+
+*** Python
+
+We use =lsp-mode= and =dap-mode= to provide a more complete development environment for Python in Emacs.  Check out [[https://emacs-lsp.github.io/lsp-mode/page/lsp-pyls/][the =pyls= configuration]] in the =lsp-mode= documentation for more details.
+
+Make sure you have the =pyls= language server installed before trying =lsp-mode=!
+
+#+begin_src sh :tangle no
+
+pip install --user "python-language-server[all]"
+
+#+end_src
+
+There are a number of other language servers for Python so if you find that =pyls= doesn't work for you, consult the =lsp-mode= [[https://emacs-lsp.github.io/lsp-mode/page/languages/][language configuration documentation]] to try the others!
+
+#+begin_src emacs-lisp
+
+(use-package python-mode
+:ensure t
+:hook (python-mode . lsp-deferred)
+:custom
+;; NOTE: Set these if Python 3 is called "python3" on your system!
+;; (python-shell-interpreter "python3")
+;; (dap-python-executable "python3")
+(dap-python-debugger 'debugpy)
+:config
+(require 'dap-python))
+
+
+#+end_src
+
+You can use the pyvenv package to use =virtualenv= environments in Emacs.  The =pyvenv-activate= command should configure Emacs to cause =lsp-mode= and =dap-mode= to use the virtual environment when they are loaded, just select the path to your virtual environment before loading your project.
+
+#+begin_src emacs-lisp
+
+(use-package pyvenv
+:after python-mode
+:config
+(pyvenv-mode 1))
+
+#+end_src
+*** Haskell
+#+begin_src emacs-lisp
+
+(use-package haskell-mode)
+
+#+end_src
+
+*** 
+** Company Mode
+
+[[http://company-mode.github.io/][Company Mode]] provides a nicer in-buffer completion interface than =completion-at-point= which is more reminiscent of what you would expect from an IDE.  We add a simple configuration to make the keybindings a little more useful (=TAB= now completes the selection and initiates completion at the current location if needed).
+
+We also use [[https://github.com/sebastiencs/company-box][company-box]] to further enhance the look of the completions with icons and better overall presentation.
+
+#+begin_src emacs-lisp
+
+(use-package company
+:after lsp-mode
+:hook (lsp-mode . company-mode)
+:bind (:map company-active-map
+        ("<tab>" . company-complete-selection))
+        (:map lsp-mode-map
+        ("<tab>" . company-indent-or-complete-common))
+:custom
+(company-minimum-prefix-length 1)
+(company-idle-delay 0.0))
+
+(use-package company-box
+:hook (company-mode . company-box-mode))
+
+#+end_src
+
+** Projectile
+
+[[https://projectile.mx/][Projectile]] is a project management library for Emacs which makes it a lot easier to navigate around code projects for various languages.  Many packages integrate with Projectile so it's a good idea to have it installed even if you don't use its commands directly.
+
+#+begin_src emacs-lisp
+
+(use-package projectile
+:diminish projectile-mode
+:config (projectile-mode)
+:custom ((projectile-completion-system 'ivy))
+:bind-keymap
+("C-c p" . projectile-command-map)
+:init
+;; NOTE: Set this to the folder where you keep your Git repos!
+(when (file-directory-p "~/Projects/Code")
+    (setq projectile-project-search-path '("~/Projects/Code")))
+(setq projectile-switch-project-action #'projectile-dired))
+
+(use-package counsel-projectile
+:after projectile
+:config (counsel-projectile-mode))
+
+#+end_src
+
+** Magit
+
+[[https://magit.vc/][Magit]] is the best Git interface I've ever used.  Common Git operations are easy to execute quickly using Magit's command panel system.
+
+#+begin_src emacs-lisp
+
+(use-package magit
+:commands magit-status
+:custom
+(magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
+
+;; NOTE: Make sure to configure a GitHub token before using this package!
+;; - https://magit.vc/manual/forge/Token-Creation.html#Token-Creation
+;; - https://magit.vc/manual/ghub/Getting-Started.html#Getting-Started
+(use-package forge
+:after magit)
+
+#+end_src
+
+** Commenting
+
+Emacs' built in commenting functionality =comment-dwim= (usually bound to =M-;=) doesn't always comment things in the way you might expect so we use [[https://github.com/redguardtoo/evil-nerd-commenter][evil-nerd-commenter]] to provide a more familiar behavior.  I've bound it to =M-/= since other editors sometimes use this binding but you could also replace Emacs' =M-;= binding with this command.
+
+#+begin_src emacs-lisp
+
+(use-package evil-nerd-commenter
+:bind ("M-/" . evilnc-comment-or-uncomment-lines))
+
+#+end_src
+
+** Rainbow Delimiters
+
+[[https://github.com/Fanael/rainbow-delimiters][rainbow-delimiters]] is useful in programming modes because it colorizes nested parentheses and brackets according to their nesting depth.  This makes it a lot easier to visually match parentheses in Emacs Lisp code without having to count them yourself.
+
+#+begin_src emacs-lisp
+
+(use-package rainbow-delimiters
+:hook (prog-mode . rainbow-delimiters-mode))
+
+#+end_src
+
+* Terminals
+
+** term-mode
+
+=term-mode= is a built-in terminal emulator in Emacs.  Because it is written in Emacs Lisp, you can start using it immediately with very little configuration.  If you are on Linux or macOS, =term-mode= is a great choice to get started because it supports fairly complex terminal applications (=htop=, =vim=, etc) and works pretty reliably.  However, because it is written in Emacs Lisp, it can be slower than other options like =vterm=.  The speed will only be an issue if you regularly run console apps with a lot of output.
+
+One important thing to understand is =line-mode= versus =char-mode=.  =line-mode= enables you to use normal Emacs keybindings while moving around in the terminal buffer while =char-mode= sends most of your keypresses to the underlying terminal.  While using =term-mode=, you will want to be in =char-mode= for any terminal applications that have their own keybindings.  If you're just in your usual shell, =line-mode= is sufficient and feels more integrated with Emacs.
+
+With =evil-collection= installed, you will automatically switch to =char-mode= when you enter Evil's insert mode (press =i=).  You will automatically be switched back to =line-mode= when you enter Evil's normal mode (press =ESC=).
+
+Run a terminal with =M-x term!=
+
+*Useful key bindings:*
+
+- =C-c C-p= / =C-c C-n= - go back and forward in the buffer's prompts (also =[[= and =]]= with evil-mode)
+- =C-c C-k= - Enter char-mode
+- =C-c C-j= - Return to line-mode
+- If you have =evil-collection= installed, =term-mode= will enter char mode when you use Evil's Insert mode
+
+#+begin_src emacs-lisp
+
+  (use-package term
+    :commands term
+    :config
+    (setq explicit-shell-file-name "bash") ;; Change this to zsh, etc
+    ;;(setq explicit-zsh-args '())         ;; Use 'explicit-<shell>-args for shell-specific args
+
+    ;; Match the default Bash shell prompt.  Update this if you have a custom prompt
+    (setq term-prompt-regexp "^[^#$%>\n]*[#$%>] *"))
+
+#+end_src
+
+*** Better term-mode colors
+
+The =eterm-256color= package enhances the output of =term-mode= to enable handling of a wider range of color codes so that many popular terminal applications look as you would expect them to.  Keep in mind that this package requires =ncurses= to be installed on your machine so that it has access to the =tic= program.  Most Linux distributions come with this program installed already so you may not have to do anything extra to use it.
+
+#+begin_src emacs-lisp
+
+  (use-package eterm-256color
+    :hook (term-mode . eterm-256color-mode))
+
+#+end_src
+
+** vterm
+
+[[https://github.com/akermu/emacs-libvterm/][vterm]] is an improved terminal emulator package which uses a compiled native module to interact with the underlying terminal applications.  This enables it to be much faster than =term-mode= and to also provide a more complete terminal emulation experience.
+
+Make sure that you have the [[https://github.com/akermu/emacs-libvterm/#requirements][necessary dependencies]] installed before trying to use =vterm= because there is a module that will need to be compiled before you can use it successfully.
+
+#+begin_src emacs-lisp
+
+  (use-package vterm
+    :commands vterm
+    :config
+    (setq term-prompt-regexp "^[^#$%>\n]*[#$%>] *")  ;; Set this to match your custom shell prompt
+    ;;(setq vterm-shell "zsh")                       ;; Set this to customize the shell to launch
+    (setq vterm-max-scrollback 10000))
+
+#+end_src
+
+** shell-mode
+
+[[https://www.gnu.org/software/emacs/manual/html_node/emacs/Interactive-Shell.html#Interactive-Shell][shell-mode]] is a middle ground between =term-mode= and Eshell.  It is *not* a terminal emulator so more complex terminal programs will not run inside of it.  It does have much better integration with Emacs because all command input in this mode is handled by Emacs and then sent to the underlying shell once you press Enter.  This means that you can use =evil-mode='s editing motions on the command line, unlike in the terminal emulator modes above.
+
+*Useful key bindings:*
+
+- =C-c C-p= / =C-c C-n= - go back and forward in the buffer's prompts (also =[[= and =]]= with evil-mode)
+- =M-p= / =M-n= - go back and forward in the input history
+- =C-c C-u= - delete the current input string backwards up to the cursor
+- =counsel-shell-history= - A searchable history of commands typed into the shell
+
+One advantage of =shell-mode= on Windows is that it's the only way to run =cmd.exe=, PowerShell, Git Bash, etc from within Emacs.  Here's an example of how you would set up =shell-mode= to run PowerShell on Windows:
+
+#+begin_src emacs-lisp
+
+  (when (eq system-type 'windows-nt)
+    (setq explicit-shell-file-name "powershell.exe")
+    (setq explicit-powershell.exe-args '()))
+
+#+end_src
+
+** Eshell
+
+[[https://www.gnu.org/software/emacs/manual/html_mono/eshell.html#Contributors-to-Eshell][Eshell]] is Emacs' own shell implementation written in Emacs Lisp.  It provides you with a cross-platform implementation (even on Windows!) of the common GNU utilities you would find on Linux and macOS (=ls=, =rm=, =mv=, =grep=, etc).  It also allows you to call Emacs Lisp functions directly from the shell and you can even set up aliases (like aliasing =vim= to =find-file=).  Eshell is also an Emacs Lisp REPL which allows you to evaluate full expressions at the shell.
+
+The downsides to Eshell are that it can be harder to configure than other packages due to the particularity of where you need to set some options for them to go into effect, the lack of shell completions (by default) for some useful things like Git commands, and that REPL programs sometimes don't work as well.  However, many of these limitations can be dealt with by good configuration and installing external packages, so don't let that discourage you from trying it!
+
+*Useful key bindings:*
+
+- =C-c C-p= / =C-c C-n= - go back and forward in the buffer's prompts (also =[[= and =]]= with evil-mode)
+- =M-p= / =M-n= - go back and forward in the input history
+- =C-c C-u= - delete the current input string backwards up to the cursor
+- =counsel-esh-history= - A searchable history of commands typed into Eshell
+
+We will be covering Eshell more in future videos highlighting other things you can do with it.
+
+For more thoughts on Eshell, check out these articles by Pierre Neidhardt:
+- https://ambrevar.xyz/emacs-eshell/index.html
+- https://ambrevar.xyz/emacs-eshell-versus-shell/index.html
+
+#+begin_src emacs-lisp
+
+  (defun efs/configure-eshell ()
+    ;; Save command history when commands are entered
+    (add-hook 'eshell-pre-command-hook 'eshell-save-some-history)
+
+    ;; Truncate buffer for performance
+    (add-to-list 'eshell-output-filter-functions 'eshell-truncate-buffer)
+
+    ;; Bind some useful keys for evil-mode
+    (evil-define-key '(normal insert visual) eshell-mode-map (kbd "C-r") 'counsel-esh-history)
+    (evil-define-key '(normal insert visual) eshell-mode-map (kbd "<home>") 'eshell-bol)
+    (evil-normalize-keymaps)
+
+    (setq eshell-history-size         10000
+          eshell-buffer-maximum-lines 10000
+          eshell-hist-ignoredups t
+          eshell-scroll-to-bottom-on-input t))
+
+  (use-package eshell-git-prompt
+    :after eshell)
+
+  (use-package eshell
+    :hook (eshell-first-time-mode . efs/configure-eshell)
+    :config
+
+    (with-eval-after-load 'esh-opt
+      (setq eshell-destroy-buffer-when-process-dies t)
+      (setq eshell-visual-commands '("htop" "zsh" "vim")))
+
+    (eshell-git-prompt-use-theme 'powerline))
+
+
+#+end_src
+
+* File Management
+
+** Dired
+
+Dired is a built-in file manager for Emacs that does some pretty amazing things!  Here are some key bindings you should try out:
+
+*** Key Bindings
+
+**** Navigation
+
+*Emacs* / *Evil*
+- =n= / =j= - next line
+- =p= / =k= - previous line
+- =j= / =J= - jump to file in buffer
+- =RET= - select file or directory
+- =^= - go to parent directory
+- =S-RET= / =g O= - Open file in "other" window
+- =M-RET= - Show file in other window without focusing (previewing files)
+- =g o= (=dired-view-file=) - Open file but in a "preview" mode, close with =q=
+- =g= / =g r= Refresh the buffer with =revert-buffer= after changing configuration (and after filesystem changes!)
+
+**** Marking files
+
+- =m= - Marks a file
+- =u= - Unmarks a file
+- =U= - Unmarks all files in buffer
+- =* t= / =t= - Inverts marked files in buffer
+- =% m= - Mark files in buffer using regular expression
+- =*= - Lots of other auto-marking functions
+- =k= / =K= - "Kill" marked items (refresh buffer with =g= / =g r= to get them back)
+- Many operations can be done on a single file if there are no active marks!
+
+**** Copying and Renaming files
+
+- =C= - Copy marked files (or if no files are marked, the current file)
+- Copying single and multiple files
+- =U= - Unmark all files in buffer
+- =R= - Rename marked files, renaming multiple is a move!
+- =% R= - Rename based on regular expression: =^test= , =old-\&=
+
+*Power command*: =C-x C-q= (=dired-toggle-read-only=) - Makes all file names in the buffer editable directly to rename them!  Press =Z Z= to confirm renaming or =Z Q= to abort.
+
+**** Deleting files
+
+- =D= - Delete marked file
+- =d= - Mark file for deletion
+- =x= - Execute deletion for marks
+- =delete-by-moving-to-trash= - Move to trash instead of deleting permanently
+
+**** Creating and extracting archives
+
+- =Z= - Compress or uncompress a file or folder to (=.tar.gz=)
+- =c= - Compress selection to a specific file
+- =dired-compress-files-alist= - Bind compression commands to file extension
+
+**** Other common operations
+
+- =T= - Touch (change timestamp)
+- =M= - Change file mode
+- =O= - Change file owner
+- =G= - Change file group
+- =S= - Create a symbolic link to this file
+- =L= - Load an Emacs Lisp file into Emacs
+
+*** Configuration
+
+#+begin_src emacs-lisp
+
+  (use-package dired
+    :ensure nil
+    :commands (dired dired-jump)
+    :bind (("C-x C-j" . dired-jump))
+    :custom ((dired-listing-switches "-agho --group-directories-first"))
+    :config
+    (evil-collection-define-key 'normal 'dired-mode-map
+      "h" 'dired-single-up-directory
+      "l" 'dired-single-buffer))
+
+  (use-package dired-single
+    :commands (dired dired-jump))
+
+  (use-package all-the-icons-dired
+    :hook (dired-mode . all-the-icons-dired-mode))
+
+  (use-package dired-open
+    :commands (dired dired-jump)
+    :config
+    ;; Doesn't work as expected!
+    ;;(add-to-list 'dired-open-functions #'dired-open-xdg t)
+    (setq dired-open-extensions '(("png" . "feh")
+                                  ("mkv" . "mpv"))))
+
+  (use-package dired-hide-dotfiles
+    :hook (dired-mode . dired-hide-dotfiles-mode)
+    :config
+    (evil-collection-define-key 'normal 'dired-mode-map
+      "H" 'dired-hide-dotfiles-mode))
+
+#+end_src
+
+* Applications
+
+** Some App
+
+This is an example of configuring another non-Emacs application using org-mode.  Not only do we write out the configuration at =.config/some-app/config=, we also compute the value that gets stored in this configuration from the Emacs Lisp block above it.
+
+#+NAME: the-value
+#+begin_src emacs-lisp :tangle no
+
+  (+ 55 100)
+
+#+end_src
+
+*NOTE*: Set the =:tangle= parameter below to =.config/some-app/config= for this to work!
+
+#+begin_src conf :tangle no :noweb yes
+
+  value=<<the-value()>>
+
+#+end_src
+
+* EXWM configuration
+** Configuration
+#+begin_src emacs-lisp
+
+  (defun efs/run-in-background (command)
+    (let ((command-parts (split-string command "[ ]+")))
+      (apply #'call-process `(,(car command-parts) nil 0 nil ,@(cdr command-parts)))))
+
+  (defun efs/set-wallpaper ()
+    (interactive)
+    ;; NOTE: You will need to update this to a valid background path!
+    (start-process-shell-command
+        "feh" nil  "feh --recursive --bg-fill --randomize ~/wallpapers/*"))
+
+  (defun efs/exwm-init-hook ()
+    ;; Make workspace 1 be the one where we land at startup
+    (exwm-workspace-switch-create 1)
+
+    ;; Open eshell by default
+    ;;(eshell)
+
+    ;; Show battery status in the mode line
+    (display-battery-mode 1)
+
+    ;; Show the time and date in modeline
+    (setq display-time-day-and-date t)
+    (display-time-mode 1)
+    ;; Also take a look at display-time-format and format-time-string
+
+    ;; Launch apps that will run in the background
+    (efs/run-in-background "nm-applet")
+    (efs/run-in-background "pasystray")
+    (efs/run-in-background "blueman-applet"))
+
+  (defun efs/exwm-update-class ()
+    (exwm-workspace-rename-buffer exwm-class-name))
+
+  (defun efs/exwm-update-title ()
+    (pcase exwm-class-name
+      ("Firefox"      (exwm-workspace-rename-buffer (format exwm-title)))
+      ("Firefox Beta" (exwm-workspace-rename-buffer (format exwm-title)))
+      ("okular" (exwm-workspace-rename-buffer (format exwm-title)))
+      ("Brave-browser"(exwm-workspace-rename-buffer (format exwm-title)))))
+
+  (defun restrict-fullscreen ()
+    (interactive)
+    (toggle-frame-fullscreen)
+    (exwm-reset))
+
+  ;; This function isn't currently used, only serves as an example how to
+  ;; position a window
+  (defun efs/position-window ()
+    (let* ((pos (frame-position))
+           (pos-x (car pos))
+           (pos-y (cdr pos)))
+
+      (exwm-floating-move (- pos-x) (- pos-y))))
+
+  (defun efs/configure-window-by-class ()
+    (interactive)
+    (pcase exwm-class-name
+      ("Sol" (exwm-workspace-move-window 3))
+      ("mpv" ;;(exwm-floating-toggle-floating)
+             (exwm-layout-toggle-mode-line))))
+
+
+  (defun open-terminal ()
+    (interactive)
+    (start-process-shell-command "terminator" nil "terminator"))
+  (use-package exwm
+    :config
+    ;; Set the default number of workspaces
+    (setq exwm-workspace-number 10)
+
+    ;; When window "class" updates, use it to set the buffer name
+    (add-hook 'exwm-update-class-hook #'efs/exwm-update-class)
+
+    ;; When window title updates, use it to set the buffer name
+    (add-hook 'exwm-update-title-hook #'efs/exwm-update-title)
+
+    ;; Configure windows as they're created
+    (add-hook 'exwm-manage-finish-hook #'efs/configure-window-by-class)
+
+    ;;Make char mode active
+    (add-hook 'exwm-manage-finish-hook #'exwm-input-release-keyboard)
+
+    ;; When EXWM starts up, do some extra confifuration
+    (add-hook 'exwm-init-hook #'efs/exwm-init-hook)
+
+    (add-hook 'exwm-manage-finish-hook
+              (lambda ()
+                (when (and exwm-class-name
+                           (string= exwm-class-name "Terminator"))
+                  (exwm-input-set-local-simulation-keys '(([?\C-c ?\C-c] . ?\C-c))))))
+
+    ;;keyboard layout is us or dvp
+    (start-process-shell-command "setxkbmap" nil "setxkbmap -model 'pc104' -layout 'us(cmk_ed_us), us' -option 'misc:extend,lv5:caps_switch_lock,grp:shifts_toggle,compose:menu'")
+    ;;(start-process-shell-command "setxkbmap" nil "setxkbmap -model pc104 -layout us -variant colemak")
+
+
+
+    ;; Rebind Alt Car and Prt Scr to Ctrl
+    (start-process-shell-command "xmodmap" nil "xmodmap ~/.emacs.d/exwm/Xmodmap")
+
+
+    ;;Would  seet keyboard layout to dvorak
+    ;;(start-process-shell-command "setxkbmap" nil "setxkbmap -model pc104 -layout us -variant dvorak")
+    ;; NOTE: Uncomment the following two options if you want window buffers
+    ;;       to be available on all workspaces!
+
+    ;; Automatically move EXWM buffer to current workspace when selected
+    (setq exwm-layout-show-all-buffers t)
+
+    ;; Display all EXWM buffers in every workspace buffer list
+    (setq exwm-workspace-show-all-buffers t)
+
+    ;; NOTE: Uncomment this option if you want :w
+    ;;to detach the minibuffer!
+    ;; Detach the minibuffer (show it with exwm-workspace-toggle-minibuffer)
+    ;;(setq exwm-workspace-minibuffer-position 'top)
+
+    ;; Set the screen resolution (update this to be the correct resolution for your screen!)
+    (require 'exwm-randr)
+    (exwm-randr-enable)
+    (start-process-shell-command "xrandr" nil "xrandr --output Virtual-1 --primary --mode 1920x1080x32 --pos 0x0 --rotate normal")
+
+    ;; Set the wallpaper after changing the resolution
+    (efs/set-wallpaper)
+
+    ;; Load the system tray before exwm-init
+    (require 'exwm-systemtray)
+    (setq exwm-systemtray-height 32)
+    ;;(exwm-systemtray-enable)
+
+    ;;Launch picom on startup
+    (start-process-shell-command "picom" nil "picom")
+    ;; These keys should always pass through to Emacs
+    (setq exwm-input-prefix-keys
+      '(?\C-x
+        ?\C-u
+        ?\C-h
+        ?\M-x
+        ?\M-`
+        ?\M-&
+        ?\M-:
+        ?\C-\M-j  ;; Buffer list
+        ?\C-\ ))  ;; Ctrl+Space
+
+    ;; Ctrl+Q will enable the next key to be sent directly
+    (define-key exwm-mode-map [?\C-q] 'exwm-input-send-next-key)
+
+    ;; Set up global key bindings.  These always work, no matter the input state!
+    ;; Keep in mind that changing this list after EXWM initializes has no effect.
+    (setq exwm-input-global-keys
+          `(
+            ;; Reset to line-mode (C-c C-k switches to char-mode via exwm-input-release-keyboard)
+
+
+            ([?\s-r] . exwm-reset)
+
+            ;;Swaps Windows
+            ([s-M-left] . windmove-swap-states-left)
+            ([s-M-right] . windmove-swap-states-right)
+            ([s-M-up] . windmove-swap-states-up)
+            ([s-M-down] . windmove-swap-states-down)
+
+            ;; Move between windows
+            ([s-left] . windmove-left)
+            ([s-right] . windmove-right)
+            ([s-up] . windmove-up)
+            ([s-down] . windmove-down)
+
+            ;;VIM window control
+            ;;Swaps Windows
+            ([s-M-h] . windmove-swap-states-left)
+            ([s-M-l] . windmove-swap-states-right)
+            ([s-M-k] . windmove-swap-states-up)
+            ([s-M-j] . windmove-swap-states-down)
+
+            ;;Moves between windows
+            ([?\s-h] . windmove-left)
+            ([?\s-l] . windmove-right)
+            ([?\s-k] . windmove-up)
+            ([?\s-j] . windmove-down)
+
+
+
+            ;;Log Out
+            ([?\C-x ?\C-c] . save-buffer-kill-emacs)
+
+            ;;Kills current buffer
+            ([?\s-c] . kill-buffer)
+            ;;Removes a Window
+            ([?\s-q] . delete-window)
+            ;;Kills current buffer and removes window
+            ;;([?\s-Q] . kill-buffer-and-window)
+
+
+            ;;Window Splitting
+
+            ([?\s-y] . split-window-right)
+            ([?\s-x] . split-window-below)
+
+            ;; Launch applications via shell command
+            ([?\s-.] . (lambda (command)
+                         (interactive (list (read-shell-command "$ ")))
+                         (start-process-shell-command command nil command)))
+
+            ;; Switch workspace
+            ([?\s-w] . exwm-workspace-switch)
+            ([?\s-`] . (lambda () (interactive) (exwm-workspace-switch-create 0)))
+
+            ;; 's-N': Switch to certain workspace with Super (Win) plus a number key (0 - 9)
+            ,@(mapcar (lambda (i)
+                        `(,(kbd (format "s-%d" i)) .
+                          (lambda ()
+                            (interactive)
+                            (exwm-workspace-switch-create ,i))))
+                      (number-sequence 0 9))))
+
+    (exwm-input-set-key (kbd "s-SPC") 'counsel-linux-app)
+    ;; Epic Volume aadjustment
+    (exwm-input-set-key (kbd "s-[") 'desktop-environment-volume-decrement-slowly)
+    (exwm-input-set-key (kbd "s-]") 'desktop-environment-volume-increment-slowly)
+    (exwm-input-set-key (kbd "s-<return>") 'open-terminal)
+
+
+    ;;Resize Windows  
+    (exwm-input-set-key (kbd "s-C-h") 'exwm-layout-shrink-window-horizontally)
+    (exwm-input-set-key (kbd "s-C-j") 'exwm-layout-shrink-window)
+    (exwm-input-set-key (kbd "s-C-k") 'exwm-layout-enlarge-window)
+    (exwm-input-set-key (kbd "s-C-l") 'exwm-layout-enlarge-window-horizontally)
+    ;;Resize Windows  
+    (exwm-input-set-key (kbd "s-M-h") 'windmove-swap-states-left)
+    (exwm-input-set-key (kbd "s-M-j") 'windmove-swap-states-down)
+    (exwm-input-set-key (kbd "s-M-k") 'windmove-swap-states-up)
+    (exwm-input-set-key (kbd "s-M-l") 'windmove-swap-states-right)
+    (exwm-enable))
+
+#+end_src
+** Set-up of other files
+#+begin_src shell :tangle no
+  sudo cp -f ~/.emacs.d/exwm/EXWM.desktop /usr/share/xsessions/EXWM.desktop
+#+end_src
+
+#+begin_src shell :tangle ./exwm/EXWM.desktop :mkdirp yes
+  [Desktop Entry]
+  Name=EXWM
+  Comment=Emacs Window Manager
+  Exec=sh /home/xenonex/.emacs.d/exwm/start-exwm.sh
+  TryExec=sh
+  Type=Application
+  X-LightDM-DesktopName=exwm
+  DesktopNames=exwm
+#+end_src
+
+#+begin_src shell :tangle ./exwm/start-exwm.sh :shebang #!/bin/sh
+  # Set the screen DPI (uncomment this if needed!)
+  # xrdb ~/.emacs.d/exwm/Xresources
+
+  # Fire it up
+  exec dbus-launch --exit-with-session emacs -mm --debug-init
+#+end_src
+
+#+begin_src shell :tangle ./exwm/Xmodmap
+  clear control
+  keycode 107 = Control_L
+  keycode 108 = Control_L
+  add control = Control_L
+#+end_src
+
+#+begin_src shell conf :tangle ./exwm/Xresources
+  Xft.dpi: 100
+#+end_src
+
+** Desktop Environment
+Set up desktop key bindings
+#+begin_src emacs-lisp
+(use-package desktop-environment
+  :after exwm
+  :custom
+  (desktop-environment-brightness-small-increment "2%+")
+  (desktop-environment-brightness-small-decrement "2%-")
+  (desktop-environment-brightness-normal-increment "5%+")
+  (desktop-environment-brightness-normal-decrement "5%-"))
+#+end_src
+
+** EXWM Improved
+#+begin_src emacs-lisp  
+
+  ;;; exwm.el --- Emacs X Window Manager  -*- lexical-binding: t -*-
+
+  ;; Copyright (C) 2015-2020 Free Software Foundation, Inc.
+
+  ;; Author: Chris Feng <chris.w.feng@gmail.com>
+  ;; Maintainer: Chris Feng <chris.w.feng@gmail.com>
+  ;; Version: 0.24
+  ;; Package-Requires: ((xelb "0.18"))
+  ;; Keywords: unix
+  ;; URL: https://github.com/ch11ng/exwm
+
+  ;; This file is part of GNU Emacs.
+
+  ;; GNU Emacs is free software: you can redistribute it and/or modify
+  ;; it under the terms of the GNU General Public License as published by
+  ;; the Free Software Foundation, either version 3 of the License, or
+  ;; (at your option) any later version.
+
+  ;; GNU Emacs is distributed in the hope that it will be useful,
+  ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ;; GNU General Public License for more details.
+
+  ;; You should have received a copy of the GNU General Public License
+  ;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+
+  ;;; Commentary:
+
+  ;; Overview
+  ;; --------
+  ;; EXWM (Emacs X Window Manager) is a full-featured tiling X window manager
+  ;; for Emacs built on top of [XELB](https://github.com/ch11ng/xelb).
+  ;; It features:
+  ;; + Fully keyboard-driven operations
+  ;; + Hybrid layout modes (tiling & stacking)
+  ;; + Dynamic workspace support
+  ;; + ICCCM/EWMH compliance
+  ;; + (Optional) RandR (multi-monitor) support
+  ;; + (Optional) Built-in system tray
+
+  ;; Installation & configuration
+  ;; ----------------------------
+  ;; Here are the minimal steps to get EXWM working:
+  ;; 1. Install XELB and EXWM, and make sure they are in `load-path'.
+  ;; 2. In '~/.emacs', add following lines (please modify accordingly):
+  ;;
+  ;;    (require 'exwm)
+  ;;    (require 'exwm-config)
+  ;;    (exwm-config-example)
+  ;;
+  ;; 3. Link or copy the file 'xinitrc' to '~/.xinitrc'.
+  ;; 4. Launch EXWM in a console (e.g. tty1) with
+  ;;
+  ;;    xinit -- vt01
+  ;;
+  ;; You should additionally hide the menu-bar, tool-bar, etc to increase the
+  ;; usable space.  Please check the wiki (https://github.com/ch11ng/exwm/wiki)
+  ;; for more detailed instructions on installation, configuration, usage, etc.
+
+  ;; References:
+  ;; + dwm (http://dwm.suckless.org/)
+  ;; + i3 wm (https://i3wm.org/)
+  ;; + Also see references within each required library.
+
+  ;;; Code:
+
+  (require 'server)
+  (require 'exwm-core)
+  (require 'exwm-workspace)
+  (require 'exwm-layout)
+  (require 'exwm-floating)
+  (require 'exwm-manage)
+  (require 'exwm-input)
+
+  (defgroup exwm nil
+    "Emacs X Window Manager."
+    :tag "EXWM"
+    :version "25.3"
+    :group 'applications
+    :prefix "exwm-")
+
+  (defcustom exwm-init-hook nil
+    "Normal hook run when EXWM has just finished initialization."
+    :type 'hook)
+
+  (defcustom exwm-exit-hook nil
+    "Normal hook run just before EXWM exits."
+    :type 'hook)
+
+  (defcustom exwm-update-class-hook nil
+    "Normal hook run when window class is updated."
+    :type 'hook)
+
+  (defcustom exwm-update-title-hook nil
+    "Normal hook run when window title is updated."
+    :type 'hook)
+
+  (defcustom exwm-blocking-subrs '(x-file-dialog x-popup-dialog x-select-font)
+    "Subrs (primitives) that would normally block EXWM."
+    :type '(repeat function))
+
+  (defcustom exwm-replace 'ask
+    "Whether to replace existing window manager."
+    :type '(radio (const :tag "Ask" ask)
+                  (const :tag "Replace by default" t)
+                  (const :tag "Do not replace" nil)))
+
+  (defconst exwm--server-name "server-exwm"
+    "Name of the subordinate Emacs server.")
+
+  (defvar exwm--server-process nil "Process of the subordinate Emacs server.")
+
+  (defun exwm-reset ()
+    "Reset the state of the selected window (non-fullscreen, line-mode, etc)."
+    (interactive)
+    (exwm--log)
+    (with-current-buffer (window-buffer)
+      (when (derived-mode-p 'exwm-mode)
+        (when (exwm-layout--fullscreen-p)
+          (exwm-layout-unset-fullscreen))
+        ;; Force refresh
+        (exwm-layout--refresh)
+        (call-interactively #'exwm-input-grab-keyboard))))
+
+  ;;;###autoload
+  (defun exwm-restart ()
+    "Restart EXWM."
+    (interactive)
+    (exwm--log)
+    (when (exwm--confirm-kill-emacs "[EXWM] Restart? " 'no-check)
+      (let* ((attr (process-attributes (emacs-pid)))
+             (args (cdr (assq 'args attr)))
+             (ppid (cdr (assq 'ppid attr)))
+             (pargs (cdr (assq 'args (process-attributes ppid)))))
+        (cond
+         ((= ppid 1)
+          ;; The parent is the init process.  This probably means this
+          ;; instance is an emacsclient.  Anyway, start a control instance
+          ;; to manage the subsequent ones.
+          (call-process (car command-line-args))
+          (kill-emacs))
+         ((string= args pargs)
+          ;; This is a subordinate instance.  Return a magic number to
+          ;; inform the parent (control instance) to start another one.
+          (kill-emacs ?R))
+         (t
+          ;; This is the control instance.  Keep starting subordinate
+          ;; instances until told to exit.
+          ;; Run `server-force-stop' if it exists.
+          (run-hooks 'kill-emacs-hook)
+          (with-temp-buffer
+            (while (= ?R (shell-command-on-region (point) (point) args))))
+          (kill-emacs))))))
+
+  (defun exwm--update-desktop (xwin)
+    "Update _NET_WM_DESKTOP."
+    (exwm--log "#x%x" xwin)
+    (with-current-buffer (exwm--id->buffer xwin)
+      (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                       (make-instance 'xcb:ewmh:get-_NET_WM_DESKTOP
+                                      :window xwin)))
+            desktop)
+        (when reply
+          (setq desktop (slot-value reply 'value))
+          (cond
+           ((eq desktop 4294967295.)
+            (unless (or (not exwm--floating-frame)
+                        (eq exwm--frame exwm-workspace--current)
+                        (and exwm--desktop
+                             (= desktop exwm--desktop)))
+              (exwm-layout--show xwin (frame-root-window exwm--floating-frame)))
+            (setq exwm--desktop desktop))
+           ((and desktop
+                 (< desktop (exwm-workspace--count))
+                 (if exwm--desktop
+                     (/= desktop exwm--desktop)
+                   (/= desktop (exwm-workspace--position exwm--frame))))
+            (exwm-workspace-move-window desktop xwin))
+           (t
+            (exwm-workspace--set-desktop xwin)))))))
+
+  (defun exwm--update-window-type (id &optional force)
+    "Update _NET_WM_WINDOW_TYPE."
+    (exwm--log "#x%x" id)
+    (with-current-buffer (exwm--id->buffer id)
+      (unless (and exwm-window-type (not force))
+        (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                         (make-instance 'xcb:ewmh:get-_NET_WM_WINDOW_TYPE
+                                        :window id))))
+          (when reply                     ;nil when destroyed
+            (setq exwm-window-type (append (slot-value reply 'value) nil)))))))
+
+  (defun exwm--update-class (id &optional force)
+    "Update WM_CLASS."
+    (exwm--log "#x%x" id)
+    (with-current-buffer (exwm--id->buffer id)
+      (unless (and exwm-instance-name exwm-class-name (not force))
+        (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                         (make-instance 'xcb:icccm:get-WM_CLASS :window id))))
+          (when reply                     ;nil when destroyed
+            (setq exwm-instance-name (slot-value reply 'instance-name)
+                  exwm-class-name (slot-value reply 'class-name))
+            (when (and exwm-instance-name exwm-class-name)
+              (run-hooks 'exwm-update-class-hook)))))))
+
+  (defun exwm--update-utf8-title (id &optional force)
+    "Update _NET_WM_NAME."
+    (exwm--log "#x%x" id)
+    (with-current-buffer (exwm--id->buffer id)
+      (when (or force (not exwm-title))
+        (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                         (make-instance 'xcb:ewmh:get-_NET_WM_NAME :window id))))
+          (when reply                     ;nil when destroyed
+            (setq exwm-title (slot-value reply 'value))
+            (when exwm-title
+              (setq exwm--title-is-utf8 t)
+              (run-hooks 'exwm-update-title-hook)))))))
+
+  (defun exwm--update-ctext-title (id &optional force)
+    "Update WM_NAME."
+    (exwm--log "#x%x" id)
+    (with-current-buffer (exwm--id->buffer id)
+      (unless (or exwm--title-is-utf8
+                  (and exwm-title (not force)))
+        (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                         (make-instance 'xcb:icccm:get-WM_NAME :window id))))
+          (when reply                     ;nil when destroyed
+            (setq exwm-title (slot-value reply 'value))
+            (when exwm-title
+              (run-hooks 'exwm-update-title-hook)))))))
+
+  (defun exwm--update-title (id)
+    "Update _NET_WM_NAME or WM_NAME."
+    (exwm--log "#x%x" id)
+    (exwm--update-utf8-title id)
+    (exwm--update-ctext-title id))
+
+  (defun exwm--update-transient-for (id &optional force)
+    "Update WM_TRANSIENT_FOR."
+    (exwm--log "#x%x" id)
+    (with-current-buffer (exwm--id->buffer id)
+      (unless (and exwm-transient-for (not force))
+        (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                         (make-instance 'xcb:icccm:get-WM_TRANSIENT_FOR
+                                        :window id))))
+          (when reply                     ;nil when destroyed
+            (setq exwm-transient-for (slot-value reply 'value)))))))
+
+  (defun exwm--update-normal-hints (id &optional force)
+    "Update WM_NORMAL_HINTS."
+    (exwm--log "#x%x" id)
+    (with-current-buffer (exwm--id->buffer id)
+      (unless (and (not force)
+                   (or exwm--normal-hints-x exwm--normal-hints-y
+                       exwm--normal-hints-width exwm--normal-hints-height
+                       exwm--normal-hints-min-width exwm--normal-hints-min-height
+                       exwm--normal-hints-max-width exwm--normal-hints-max-height
+                       ;; FIXME: other fields
+                       ))
+        (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                         (make-instance 'xcb:icccm:get-WM_NORMAL_HINTS
+                                        :window id))))
+          (when (and reply (slot-value reply 'flags)) ;nil when destroyed
+            (with-slots (flags x y width height min-width min-height max-width
+                               max-height base-width base-height ;; win-gravity
+                               )
+                reply
+              (unless (= 0 (logand flags xcb:icccm:WM_SIZE_HINTS:USPosition))
+                (setq exwm--normal-hints-x x exwm--normal-hints-y y))
+              (unless (= 0 (logand flags xcb:icccm:WM_SIZE_HINTS:USSize))
+                (setq exwm--normal-hints-width width
+                      exwm--normal-hints-height height))
+              (unless (= 0 (logand flags xcb:icccm:WM_SIZE_HINTS:PMinSize))
+                (setq exwm--normal-hints-min-width min-width
+                      exwm--normal-hints-min-height min-height))
+              (unless (= 0 (logand flags xcb:icccm:WM_SIZE_HINTS:PMaxSize))
+                (setq exwm--normal-hints-max-width max-width
+                      exwm--normal-hints-max-height max-height))
+              (unless (or exwm--normal-hints-min-width
+                          (= 0 (logand flags xcb:icccm:WM_SIZE_HINTS:PBaseSize)))
+                (setq exwm--normal-hints-min-width base-width
+                      exwm--normal-hints-min-height base-height))
+              ;; (unless (= 0 (logand flags xcb:icccm:WM_SIZE_HINTS:PWinGravity))
+              ;;   (setq exwm--normal-hints-win-gravity win-gravity))
+              (setq exwm--fixed-size
+                    (and exwm--normal-hints-min-width
+                         exwm--normal-hints-min-height
+                         exwm--normal-hints-max-width
+                         exwm--normal-hints-max-height
+                         (/= 0 exwm--normal-hints-min-width)
+                         (/= 0 exwm--normal-hints-min-height)
+                         (= exwm--normal-hints-min-width
+                            exwm--normal-hints-max-width)
+                         (= exwm--normal-hints-min-height
+                            exwm--normal-hints-max-height)))))))))
+
+  (defun exwm--update-hints (id &optional force)
+    "Update WM_HINTS."
+    (exwm--log "#x%x" id)
+    (with-current-buffer (exwm--id->buffer id)
+      (unless (and (not force) exwm--hints-input exwm--hints-urgency)
+        (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                         (make-instance 'xcb:icccm:get-WM_HINTS :window id))))
+          (when (and reply (slot-value reply 'flags)) ;nil when destroyed
+            (with-slots (flags input initial-state) reply
+              (when flags
+                (unless (= 0 (logand flags xcb:icccm:WM_HINTS:InputHint))
+                  (setq exwm--hints-input (when input (= 1 input))))
+                (unless (= 0 (logand flags xcb:icccm:WM_HINTS:StateHint))
+                  (setq exwm-state initial-state))
+                (unless (= 0 (logand flags xcb:icccm:WM_HINTS:UrgencyHint))
+                  (setq exwm--hints-urgency t))))
+            (when (and exwm--hints-urgency
+                       (not (eq exwm--frame exwm-workspace--current)))
+              (unless (frame-parameter exwm--frame 'exwm-urgency)
+                (set-frame-parameter exwm--frame 'exwm-urgency t)
+                (setq exwm-workspace--switch-history-outdated t))))))))
+
+  (defun exwm--update-protocols (id &optional force)
+    "Update WM_PROTOCOLS."
+    (exwm--log "#x%x" id)
+    (with-current-buffer (exwm--id->buffer id)
+      (unless (and exwm--protocols (not force))
+        (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                         (make-instance 'xcb:icccm:get-WM_PROTOCOLS
+                                        :window id))))
+          (when reply                     ;nil when destroyed
+            (setq exwm--protocols (append (slot-value reply 'value) nil)))))))
+
+  (defun exwm--update-struts-legacy (id)
+    "Update _NET_WM_STRUT."
+    (exwm--log "#x%x" id)
+    (let ((pair (assq id exwm-workspace--id-struts-alist))
+          reply struts)
+      (unless (and pair (< 4 (length (cdr pair))))
+        (setq reply (xcb:+request-unchecked+reply exwm--connection
+                        (make-instance 'xcb:ewmh:get-_NET_WM_STRUT
+                                       :window id)))
+        (when reply
+          (setq struts (slot-value reply 'value))
+          (if pair
+              (setcdr pair struts)
+            (push (cons id struts) exwm-workspace--id-struts-alist))
+          (exwm-workspace--update-struts))
+        ;; Update workareas.
+        (exwm-workspace--update-workareas)
+        ;; Update workspaces.
+        (dolist (f exwm-workspace--list)
+          (exwm-workspace--set-fullscreen f)))))
+
+  (defun exwm--update-struts-partial (id)
+    "Update _NET_WM_STRUT_PARTIAL."
+    (exwm--log "#x%x" id)
+    (let ((reply (xcb:+request-unchecked+reply exwm--connection
+                     (make-instance 'xcb:ewmh:get-_NET_WM_STRUT_PARTIAL
+                                    :window id)))
+          struts pair)
+      (when reply
+        (setq struts (slot-value reply 'value)
+              pair (assq id exwm-workspace--id-struts-alist))
+        (if pair
+            (setcdr pair struts)
+          (push (cons id struts) exwm-workspace--id-struts-alist))
+        (exwm-workspace--update-struts))
+      ;; Update workareas.
+      (exwm-workspace--update-workareas)
+      ;; Update workspaces.
+      (dolist (f exwm-workspace--list)
+        (exwm-workspace--set-fullscreen f))))
+
+  (defun exwm--update-struts (id)
+    "Update _NET_WM_STRUT_PARTIAL or _NET_WM_STRUT."
+    (exwm--log "#x%x" id)
+    (exwm--update-struts-partial id)
+    (exwm--update-struts-legacy id))
+
+  (defun exwm--on-PropertyNotify (data _synthetic)
+    "Handle PropertyNotify event."
+    (let ((obj (make-instance 'xcb:PropertyNotify))
+          atom id buffer)
+      (xcb:unmarshal obj data)
+      (setq id (slot-value obj 'window)
+            atom (slot-value obj 'atom))
+      (exwm--log "atom=%s(%s)" (x-get-atom-name atom exwm-workspace--current) atom)
+      (setq buffer (exwm--id->buffer id))
+      (if (not (buffer-live-p buffer))
+          ;; Properties of unmanaged X windows.
+          (cond ((= atom xcb:Atom:_NET_WM_STRUT)
+                 (exwm--update-struts-legacy id))
+                ((= atom xcb:Atom:_NET_WM_STRUT_PARTIAL)
+                 (exwm--update-struts-partial id)))
+        (with-current-buffer buffer
+          (cond ((= atom xcb:Atom:_NET_WM_WINDOW_TYPE)
+                 (exwm--update-window-type id t))
+                ((= atom xcb:Atom:WM_CLASS)
+                 (exwm--update-class id t))
+                ((= atom xcb:Atom:_NET_WM_NAME)
+                 (exwm--update-utf8-title id t))
+                ((= atom xcb:Atom:WM_NAME)
+                 (exwm--update-ctext-title id t))
+                ((= atom xcb:Atom:WM_TRANSIENT_FOR)
+                 (exwm--update-transient-for id t))
+                ((= atom xcb:Atom:WM_NORMAL_HINTS)
+                 (exwm--update-normal-hints id t))
+                ((= atom xcb:Atom:WM_HINTS)
+                 (exwm--update-hints id t))
+                ((= atom xcb:Atom:WM_PROTOCOLS)
+                 (exwm--update-protocols id t))
+                ((= atom xcb:Atom:_NET_WM_USER_TIME)) ;ignored
+                (t
+                 (exwm--log "Unhandled: %s(%d)"
+                            (x-get-atom-name atom exwm-workspace--current)
+                            atom)))))))
+
+  (defun exwm--on-ClientMessage (raw-data _synthetic)
+    "Handle ClientMessage event."
+    (let ((obj (make-instance 'xcb:ClientMessage))
+          type id data)
+      (xcb:unmarshal obj raw-data)
+      (setq type (slot-value obj 'type)
+            id (slot-value obj 'window)
+            data (slot-value (slot-value obj 'data) 'data32))
+      (exwm--log "atom=%s(%s)" (x-get-atom-name type exwm-workspace--current)
+                 type)
+      (cond
+       ;; _NET_NUMBER_OF_DESKTOPS.
+       ((= type xcb:Atom:_NET_NUMBER_OF_DESKTOPS)
+        (let ((current (exwm-workspace--count))
+              (requested (elt data 0)))
+          ;; Only allow increasing/decreasing the workspace number by 1.
+          (cond
+           ((< current requested)
+            (make-frame))
+           ((and (> current requested)
+                 (> current 1))
+            (let ((frame (car (last exwm-workspace--list))))
+              (exwm-workspace--get-remove-frame-next-workspace frame)
+              (delete-frame frame))))))
+       ;; _NET_CURRENT_DESKTOP.
+       ((= type xcb:Atom:_NET_CURRENT_DESKTOP)
+        (exwm-workspace-switch (elt data 0)))
+       ;; _NET_ACTIVE_WINDOW.
+       ((= type xcb:Atom:_NET_ACTIVE_WINDOW)
+        (let ((buffer (exwm--id->buffer id))
+              iconic window)
+          (when (buffer-live-p buffer)
+            (with-current-buffer buffer
+              (when (eq exwm--frame exwm-workspace--current)
+                (if exwm--floating-frame
+                    (select-frame exwm--floating-frame)
+                  (setq iconic (exwm-layout--iconic-state-p))
+                  (when iconic
+                    ;; State change: iconic => normal.
+                    (set-window-buffer (frame-selected-window exwm--frame)
+                                       (current-buffer)))
+                  ;; Focus transfer.
+                  (setq window (get-buffer-window nil t))
+                  (when (or iconic
+                            (not (eq window (selected-window))))
+                    (select-window window))))))))
+       ;; _NET_CLOSE_WINDOW.
+       ((= type xcb:Atom:_NET_CLOSE_WINDOW)
+        (let ((buffer (exwm--id->buffer id)))
+          (when (buffer-live-p buffer)
+            (exwm--defer 0 #'kill-buffer buffer))))
+       ;; _NET_WM_MOVERESIZE
+       ((= type xcb:Atom:_NET_WM_MOVERESIZE)
+        (let ((direction (elt data 2))
+              (buffer (exwm--id->buffer id)))
+          (unless (and buffer
+                       (not (buffer-local-value 'exwm--floating-frame buffer)))
+            (cond ((= direction
+                      xcb:ewmh:_NET_WM_MOVERESIZE_SIZE_KEYBOARD)
+                   ;; FIXME
+                   )
+                  ((= direction
+                      xcb:ewmh:_NET_WM_MOVERESIZE_MOVE_KEYBOARD)
+                   ;; FIXME
+                   )
+                  ((= direction xcb:ewmh:_NET_WM_MOVERESIZE_CANCEL)
+                   (exwm-floating--stop-moveresize))
+                  ;; In case it's a workspace frame.
+                  ((and (not buffer)
+                        (catch 'break
+                          (dolist (f exwm-workspace--list)
+                            (when (or (eq id (frame-parameter f 'exwm-outer-id))
+                                      (eq id (frame-parameter f 'exwm-id)))
+                              (throw 'break t)))
+                          nil)))
+                  (t
+                   ;; In case it's a floating frame,
+                   ;; move the corresponding X window instead.
+                   (unless buffer
+                     (catch 'break
+                       (dolist (pair exwm--id-buffer-alist)
+                         (with-current-buffer (cdr pair)
+                           (when
+                               (and exwm--floating-frame
+                                    (or (eq id
+                                            (frame-parameter exwm--floating-frame
+                                                             'exwm-outer-id))
+                                        (eq id
+                                            (frame-parameter exwm--floating-frame
+                                                             'exwm-id))))
+                             (setq id exwm--id)
+                             (throw 'break nil))))))
+                   ;; Start to move it.
+                   (exwm-floating--start-moveresize id direction))))))
+       ;; _NET_REQUEST_FRAME_EXTENTS
+       ((= type xcb:Atom:_NET_REQUEST_FRAME_EXTENTS)
+        (let ((buffer (exwm--id->buffer id))
+              top btm)
+          (if (or (not buffer)
+                  (not (buffer-local-value 'exwm--floating-frame buffer)))
+              (setq top 0
+                    btm 0)
+            (setq top (window-header-line-height)
+                  btm (window-mode-line-height)))
+          (xcb:+request exwm--connection
+              (make-instance 'xcb:ewmh:set-_NET_FRAME_EXTENTS
+                             :window id
+                             :left 0
+                             :right 0
+                             :top top
+                             :bottom btm)))
+        (xcb:flush exwm--connection))
+       ;; _NET_WM_DESKTOP.
+       ((= type xcb:Atom:_NET_WM_DESKTOP)
+        (let ((buffer (exwm--id->buffer id)))
+          (when (buffer-live-p buffer)
+            (exwm-workspace-move-window (elt data 0) id))))
+       ;; _NET_WM_STATE
+       ((= type xcb:Atom:_NET_WM_STATE)
+        (let ((action (elt data 0))
+              (props (list (elt data 1) (elt data 2)))
+              (buffer (exwm--id->buffer id))
+              props-new)
+          ;; only support _NET_WM_STATE_FULLSCREEN / _NET_WM_STATE_ADD for frames
+          ;;(when (and (not buffer)
+                     ;;(memq xcb:Atom:_NET_WM_STATE_FULLSCREEN props)
+                     ;;(= action xcb:ewmh:_NET_WM_STATE_ADD)))
+            ;;(xcb:+request
+                ;;exwm--connection
+                ;;(make-instance 'xcb:ewmh:set-_NET_WM_STATE
+                               ;;:window id
+                               ;;:data (vector xcb:Atom:_NET_WM_STATE_FULLSCREEN)))
+            ;;(xcb:flush exwm--connection))
+          (when buffer                    ;ensure it's managed
+            (with-current-buffer buffer
+              ;; _NET_WM_STATE_FULLSCREEN
+              (when (or (memq xcb:Atom:_NET_WM_STATE_FULLSCREEN props)
+                        (memq xcb:Atom:_NET_WM_STATE_ABOVE props))
+                (cond ((= action xcb:ewmh:_NET_WM_STATE_ADD)
+                       (unless (exwm-layout--fullscreen-p)
+                         (exwm-layout-unset-fullscreen id))
+                       (push xcb:Atom:_NET_WM_STATE_FULLSCREEN props-new))
+                      ((= action xcb:ewmh:_NET_WM_STATE_REMOVE)
+                       (when (exwm-layout--fullscreen-p)
+                         (exwm-layout-unset-fullscreen id)))
+                      ((= action xcb:ewmh:_NET_WM_STATE_TOGGLE)
+                       (if (exwm-layout--fullscreen-p)
+                           (exwm-layout-unset-fullscreen id)
+                         (push xcb:Atom:_NET_WM_STATE_FULLSCREEN props-new))
+                       (split-window-right)
+                       (windmove-right)
+                       (delete-window)
+
+                       (exwm-layout-enlarge-window)
+                       (exwm-layout-shrink-window)
+                       (exwm-reset))))
+
+              ;; _NET_WM_STATE_DEMANDS_ATTENTION
+              ;; FIXME: check (may require other properties set)
+              (when (memq xcb:Atom:_NET_WM_STATE_DEMANDS_ATTENTION props)
+                (when (= action xcb:ewmh:_NET_WM_STATE_ADD)
+                  (unless (eq exwm--frame exwm-workspace--current)
+                    (set-frame-parameter exwm--frame 'exwm-urgency t)
+                    (setq exwm-workspace--switch-history-outdated t)))
+                ;; xcb:ewmh:_NET_WM_STATE_REMOVE?
+                ;; xcb:ewmh:_NET_WM_STATE_TOGGLE?
+                )
+              (xcb:+request exwm--connection
+                  (make-instance 'xcb:ewmh:set-_NET_WM_STATE
+                                 :window id :data (vconcat props-new)))
+              (xcb:flush exwm--connection)))))
+       ((= type xcb:Atom:WM_PROTOCOLS)
+        (let ((type (elt data 0)))
+          (cond ((= type xcb:Atom:_NET_WM_PING)
+                 (setq exwm-manage--ping-lock nil))
+                (t (exwm--log "Unhandled WM_PROTOCOLS of type: %d" type)))))
+       ((= type xcb:Atom:WM_CHANGE_STATE)
+        (let ((buffer (exwm--id->buffer id)))
+          (when (and (buffer-live-p buffer)
+                     (= (elt data 0) xcb:icccm:WM_STATE:IconicState))
+            (with-current-buffer buffer
+              (if exwm--floating-frame
+                  (call-interactively #'exwm-floating-hide)
+                (bury-buffer))))))
+       (t
+        (exwm--log "Unhandled: %s(%d)"
+                   (x-get-atom-name type exwm-workspace--current) type)))))
+
+  (defun exwm--on-SelectionClear (data _synthetic)
+    "Handle SelectionClear events."
+    (exwm--log)
+    (let ((obj (make-instance 'xcb:SelectionClear))
+          owner selection)
+      (xcb:unmarshal obj data)
+      (setq owner (slot-value obj 'owner)
+            selection (slot-value obj 'selection))
+      (when (and (eq owner exwm--wmsn-window)
+                 (eq selection xcb:Atom:WM_S0))
+        (exwm-exit))))
+
+  (defun exwm--init-icccm-ewmh ()
+    "Initialize ICCCM/EWMH support."
+    (exwm--log)
+    ;; Handle PropertyNotify event
+    (xcb:+event exwm--connection 'xcb:PropertyNotify #'exwm--on-PropertyNotify)
+    ;; Handle relevant client messages
+    (xcb:+event exwm--connection 'xcb:ClientMessage #'exwm--on-ClientMessage)
+    ;; Handle SelectionClear
+    (xcb:+event exwm--connection 'xcb:SelectionClear #'exwm--on-SelectionClear)
+    ;; Set _NET_SUPPORTED
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_SUPPORTED
+                       :window exwm--root
+                       :data (vector
+                              ;; Root windows properties.
+                              xcb:Atom:_NET_SUPPORTED
+                              xcb:Atom:_NET_CLIENT_LIST
+                              xcb:Atom:_NET_CLIENT_LIST_STACKING
+                              xcb:Atom:_NET_NUMBER_OF_DESKTOPS
+                              xcb:Atom:_NET_DESKTOP_GEOMETRY
+                              xcb:Atom:_NET_DESKTOP_VIEWPORT
+                              xcb:Atom:_NET_CURRENT_DESKTOP
+                              ;; xcb:Atom:_NET_DESKTOP_NAMES
+                              xcb:Atom:_NET_ACTIVE_WINDOW
+                              ;; xcb:Atom:_NET_WORKAREA
+                              xcb:Atom:_NET_SUPPORTING_WM_CHECK
+                              ;; xcb:Atom:_NET_VIRTUAL_ROOTS
+                              ;; xcb:Atom:_NET_DESKTOP_LAYOUT
+                              ;; xcb:Atom:_NET_SHOWING_DESKTOP
+
+                              ;; Other root window messages.
+                              xcb:Atom:_NET_CLOSE_WINDOW
+                              ;; xcb:Atom:_NET_MOVERESIZE_WINDOW
+                              xcb:Atom:_NET_WM_MOVERESIZE
+                              ;; xcb:Atom:_NET_RESTACK_WINDOW
+                              xcb:Atom:_NET_REQUEST_FRAME_EXTENTS
+
+                              ;; Application window properties.
+                              xcb:Atom:_NET_WM_NAME
+                              ;; xcb:Atom:_NET_WM_VISIBLE_NAME
+                              ;; xcb:Atom:_NET_WM_ICON_NAME
+                              ;; xcb:Atom:_NET_WM_VISIBLE_ICON_NAME
+                              xcb:Atom:_NET_WM_DESKTOP
+                              ;;
+                              xcb:Atom:_NET_WM_WINDOW_TYPE
+                              ;; xcb:Atom:_NET_WM_WINDOW_TYPE_DESKTOP
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_DOCK
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_TOOLBAR
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_MENU
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_UTILITY
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_SPLASH
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_DIALOG
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_DROPDOWN_MENU
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_POPUP_MENU
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_TOOLTIP
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_NOTIFICATION
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_COMBO
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_DND
+                              xcb:Atom:_NET_WM_WINDOW_TYPE_NORMAL
+                              ;;
+                              xcb:Atom:_NET_WM_STATE
+                              ;; xcb:Atom:_NET_WM_STATE_MODAL
+                              ;; xcb:Atom:_NET_WM_STATE_STICKY
+                              ;; xcb:Atom:_NET_WM_STATE_MAXIMIZED_VERT
+                              ;; xcb:Atom:_NET_WM_STATE_MAXIMIZED_HORZ
+                              ;; xcb:Atom:_NET_WM_STATE_SHADED
+                              ;; xcb:Atom:_NET_WM_STATE_SKIP_TASKBAR
+                              ;; xcb:Atom:_NET_WM_STATE_SKIP_PAGER
+                              xcb:Atom:_NET_WM_STATE_HIDDEN
+                              ;;NOTE: COMMENTED OUT FOR FULLSCREEN SHENANIGANS
+
+                              ;; xcb:Atom:_NET_WM_STATE_FULLSCREEN
+                              ;; xcb:Atom:_NET_WM_STATE_ABOVE
+                              ;; xcb:Atom:_NET_WM_STATE_BELOW
+                              xcb:Atom:_NET_WM_STATE_DEMANDS_ATTENTION
+                              ;; xcb:Atom:_NET_WM_STATE_FOCUSED
+                              ;;
+                              xcb:Atom:_NET_WM_ALLOWED_ACTIONS
+                              xcb:Atom:_NET_WM_ACTION_MOVE
+                              xcb:Atom:_NET_WM_ACTION_RESIZE
+                              xcb:Atom:_NET_WM_ACTION_MINIMIZE
+                              ;; xcb:Atom:_NET_WM_ACTION_SHADE
+                              ;; xcb:Atom:_NET_WM_ACTION_STICK
+                              ;; xcb:Atom:_NET_WM_ACTION_MAXIMIZE_HORZ
+                              ;; xcb:Atom:_NET_WM_ACTION_MAXIMIZE_VERT
+                              ;; NOTE: COMMENTED OUT FOR FULLSCREEN SHENANIGANS
+
+                              ;; xcb:Atom:_NET_WM_ACTION_FULLSCREEN
+                              xcb:Atom:_NET_WM_ACTION_CHANGE_DESKTOP
+                              xcb:Atom:_NET_WM_ACTION_CLOSE
+                              ;; xcb:Atom:_NET_WM_ACTION_ABOVE
+                              ;; xcb:Atom:_NET_WM_ACTION_BELOW
+                              ;;
+                              xcb:Atom:_NET_WM_STRUT
+                              xcb:Atom:_NET_WM_STRUT_PARTIAL
+                              ;; xcb:Atom:_NET_WM_ICON_GEOMETRY
+                              ;; xcb:Atom:_NET_WM_ICON
+                              xcb:Atom:_NET_WM_PID
+                              ;; xcb:Atom:_NET_WM_HANDLED_ICONS
+                              ;; xcb:Atom:_NET_WM_USER_TIME
+                              ;; xcb:Atom:_NET_WM_USER_TIME_WINDOW
+                              xcb:Atom:_NET_FRAME_EXTENTS
+                              ;; xcb:Atom:_NET_WM_OPAQUE_REGION
+                              ;; xcb:Atom:_NET_WM_BYPASS_COMPOSITOR
+
+                              ;; Window manager protocols.
+                              xcb:Atom:_NET_WM_PING
+                              ;; xcb:Atom:_NET_WM_SYNC_REQUEST
+                              ;; xcb:Atom:_NET_WM_FULLSCREEN_MONITORS
+
+                              ;; Other properties.
+                              xcb:Atom:_NET_WM_FULL_PLACEMENT)))
+    ;; Create a child window for setting _NET_SUPPORTING_WM_CHECK
+    (let ((new-id (xcb:generate-id exwm--connection)))
+      (setq exwm--guide-window new-id)
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:CreateWindow
+                         :depth 0
+                         :wid new-id
+                         :parent exwm--root
+                         :x -1
+                         :y -1
+                         :width 1
+                         :height 1
+                         :border-width 0
+                         :class xcb:WindowClass:InputOnly
+                         :visual 0
+                         :value-mask xcb:CW:OverrideRedirect
+                         :override-redirect 1))
+      ;; Set _NET_WM_NAME.  Must be set to the name of the window manager, as
+      ;; required by wm-spec.
+      (xcb:+request exwm--connection
+          (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                         :window new-id :data "EXWM"))
+      (dolist (i (list exwm--root new-id))
+        ;; Set _NET_SUPPORTING_WM_CHECK
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ewmh:set-_NET_SUPPORTING_WM_CHECK
+                           :window i :data new-id))))
+    ;; Set _NET_DESKTOP_VIEWPORT (we don't support large desktop).
+    (xcb:+request exwm--connection
+        (make-instance 'xcb:ewmh:set-_NET_DESKTOP_VIEWPORT
+                       :window exwm--root
+                       :data [0 0]))
+    (xcb:flush exwm--connection))
+
+  (defun exwm--wmsn-acquire (replace)
+    "Acquire the WM_Sn selection.
+
+  REPLACE specifies what to do in case there already is a window
+  manager.  If t, replace it, if nil, abort and ask the user if `ask'."
+    (exwm--log "%s" replace)
+    (with-slots (owner)
+        (xcb:+request-unchecked+reply exwm--connection
+            (make-instance 'xcb:GetSelectionOwner
+                           :selection xcb:Atom:WM_S0))
+      (when (/= owner xcb:Window:None)
+        (when (eq replace 'ask)
+          (setq replace (yes-or-no-p "Replace existing window manager? ")))
+        (when (not replace)
+          (user-error "Other window manager detected")))
+      (let ((new-owner (xcb:generate-id exwm--connection)))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:CreateWindow
+                           :depth 0
+                           :wid new-owner
+                           :parent exwm--root
+                           :x -1
+                           :y -1
+                           :width 1
+                           :height 1
+                           :border-width 0
+                           :class xcb:WindowClass:CopyFromParent
+                           :visual 0
+                           :value-mask 0
+                           :override-redirect 0))
+        (xcb:+request exwm--connection
+            (make-instance 'xcb:ewmh:set-_NET_WM_NAME
+                           :window new-owner :data "EXWM: exwm--wmsn-window"))
+        (xcb:+request-checked+request-check exwm--connection
+            (make-instance 'xcb:SetSelectionOwner
+                           :selection xcb:Atom:WM_S0
+                           :owner new-owner
+                           :time xcb:Time:CurrentTime))
+        (with-slots (owner)
+            (xcb:+request-unchecked+reply exwm--connection
+                (make-instance 'xcb:GetSelectionOwner
+                               :selection xcb:Atom:WM_S0))
+          (unless (eq owner new-owner)
+            (error "Could not acquire ownership of WM selection")))
+        ;; Wait for the other window manager to terminate.
+        (when (/= owner xcb:Window:None)
+          (let (reply)
+            (cl-dotimes (i exwm--wmsn-acquire-timeout)
+              (setq reply (xcb:+request-unchecked+reply exwm--connection
+                              (make-instance 'xcb:GetGeometry :drawable owner)))
+              (when (not reply)
+                (cl-return))
+              (message "Waiting for other window manager to quit... %ds" i)
+              (sleep-for 1))
+            (when reply
+              (error "Other window manager did not release selection in time"))))
+        ;; announce
+        (let* ((cmd (make-instance 'xcb:ClientMessageData
+                                   :data32 (vector xcb:Time:CurrentTime
+                                                   xcb:Atom:WM_S0
+                                                   new-owner
+                                                   0
+                                                   0)))
+               (cm (make-instance 'xcb:ClientMessage
+                                                 :window exwm--root
+                                                 :format 32
+                                                 :type xcb:Atom:MANAGER
+                                                 :data cmd))
+               (se (make-instance 'xcb:SendEvent
+                           :propagate 0
+                           :destination exwm--root
+                           :event-mask xcb:EventMask:NoEvent
+                           :event (xcb:marshal cm exwm--connection))))
+          (xcb:+request exwm--connection se))
+        (setq exwm--wmsn-window new-owner))))
+
+  ;;;###autoload
+  (cl-defun exwm-init (&optional frame)
+    "Initialize EXWM."
+    (interactive)
+    (exwm--log "%s" frame)
+    (if frame
+        ;; The frame might not be selected if it's created by emacslicnet.
+        (select-frame-set-input-focus frame)
+      (setq frame (selected-frame)))
+    (when (not (eq 'x (framep frame)))
+      (message "[EXWM] Not running under X environment")
+      (cl-return-from exwm-init))
+    (when exwm--connection
+      (exwm--log "EXWM already running")
+      (cl-return-from exwm-init))
+    (condition-case err
+        (progn
+          (exwm-enable 'undo)               ;never initialize again
+          (setq exwm--connection (xcb:connect))
+          (set-process-query-on-exit-flag (slot-value exwm--connection 'process)
+                                          nil) ;prevent query message on exit
+          (setq exwm--root
+                (slot-value (car (slot-value
+                                  (xcb:get-setup exwm--connection) 'roots))
+                            'root))
+          ;; Initialize ICCCM/EWMH support
+          (xcb:icccm:init exwm--connection t)
+          (xcb:ewmh:init exwm--connection t)
+          ;; Try to register window manager selection.
+          (exwm--wmsn-acquire exwm-replace)
+          (when (xcb:+request-checked+request-check exwm--connection
+                    (make-instance 'xcb:ChangeWindowAttributes
+                                   :window exwm--root
+                                   :value-mask xcb:CW:EventMask
+                                   :event-mask
+                                   xcb:EventMask:SubstructureRedirect))
+            (error "Other window manager is running"))
+          ;; Disable some features not working well with EXWM
+          (setq use-dialog-box nil
+                confirm-kill-emacs #'exwm--confirm-kill-emacs)
+          (exwm--lock)
+          (exwm--init-icccm-ewmh)
+          (exwm-layout--init)
+          (exwm-floating--init)
+          (exwm-manage--init)
+          (exwm-workspace--init)
+          (exwm-input--init)
+          (exwm--unlock)
+          (exwm-workspace--post-init)
+          (exwm-input--post-init)
+          (run-hooks 'exwm-init-hook)
+          ;; Manage existing windows
+          (exwm-manage--scan))
+      (user-error)
+      ((quit error)
+       (exwm-exit)
+       ;; Rethrow error
+       (warn "[EXWM] EXWM fails to start (%s: %s)" (car err) (cdr err)))))
+
+
+  ;;;###autoload
+  (defun exwm-exit ()
+    "Exit EXWM."
+    (interactive)
+    (exwm--log)
+    (run-hooks 'exwm-exit-hook)
+    (setq confirm-kill-emacs nil)
+    ;; Exit modules.
+    (exwm-input--exit)
+    (exwm-manage--exit)
+    (exwm-workspace--exit)
+    (exwm-floating--exit)
+    (exwm-layout--exit)
+    (when exwm--connection
+      (xcb:flush exwm--connection)
+      (xcb:disconnect exwm--connection))
+    (setq exwm--connection nil))
+
+  ;;;###autoload
+  (defun exwm-enable (&optional undo)
+    "Enable/Disable EXWM."
+    (exwm--log "%s" undo)
+    (pcase undo
+      (`undo                              ;prevent reinitialization
+       (remove-hook 'window-setup-hook #'exwm-init)
+       (remove-hook 'after-make-frame-functions #'exwm-init))
+      (`undo-all                          ;attempt to revert everything
+       (remove-hook 'window-setup-hook #'exwm-init)
+       (remove-hook 'after-make-frame-functions #'exwm-init)
+       (remove-hook 'kill-emacs-hook #'exwm--server-stop)
+       (dolist (i exwm-blocking-subrs)
+         (advice-remove i #'exwm--server-eval-at)))
+      (_                                  ;enable EXWM
+       (setq frame-resize-pixelwise t     ;mandatory; before init
+             window-resize-pixelwise t)
+       ;; Ignore unrecognized command line arguments.  This can be helpful
+       ;; when EXWM is launched by some session manager.
+       (push #'vector command-line-functions)
+       ;; In case EXWM is to be started from a graphical Emacs instance.
+       (add-hook 'window-setup-hook #'exwm-init t)
+       ;; In case EXWM is to be started with emacsclient.
+       (add-hook 'after-make-frame-functions #'exwm-init t)
+       ;; Manage the subordinate Emacs server.
+       (add-hook 'kill-emacs-hook #'exwm--server-stop)
+       (dolist (i exwm-blocking-subrs)
+         (advice-add i :around #'exwm--server-eval-at)))))
+
+  (defun exwm--server-stop ()
+    "Stop the subordinate Emacs server."
+    (exwm--log)
+    (server-force-delete exwm--server-name)
+    (when exwm--server-process
+      (delete-process exwm--server-process)
+      (setq exwm--server-process nil)))
+
+  (defun exwm--server-eval-at (&rest args)
+    "Wrapper of `server-eval-at' used to advice subrs."
+    ;; Start the subordinate Emacs server if it's not alive
+    (exwm--log "%s" args)
+    (unless (server-running-p exwm--server-name)
+      (when exwm--server-process (delete-process exwm--server-process))
+      (setq exwm--server-process
+            (start-process exwm--server-name
+                           nil
+                           (car command-line-args) ;The executable file
+                           "-d" (frame-parameter nil 'display)
+                           "-Q"
+                           (concat "--daemon=" exwm--server-name)
+                           "--eval"
+                           ;; Create an invisible frame
+                           "(make-frame '((window-system . x) (visibility)))"))
+      (while (not (server-running-p exwm--server-name))
+        (sit-for 0.001)))
+    (server-eval-at
+     exwm--server-name
+     `(progn (select-frame (car (frame-list)))
+             (let ((result ,(nconc (list (make-symbol (subr-name (car args))))
+                                   (cdr args))))
+               (pcase (type-of result)
+                 ;; Return the name of a buffer
+                 (`buffer (buffer-name result))
+                 ;; We blindly convert all font objects to their XLFD names. This
+                 ;; might cause problems of course, but it still has a chance to
+                 ;; work (whereas directly passing font objects would merely
+                 ;; raise errors).
+                 ((or `font-entity `font-object `font-spec)
+                  (font-xlfd-name result))
+                 ;; Passing following types makes little sense
+                 ((or `compiled-function `finalizer `frame `hash-table `marker
+                      `overlay `process `window `window-configuration))
+                 ;; Passing the name of a subr
+                 (`subr (make-symbol (subr-name result)))
+                 ;; For other types, return the value as-is.
+                 (t result))))))
+
+  (defun exwm--confirm-kill-emacs (prompt &optional force)
+    "Confirm before exiting Emacs."
+    (exwm--log)
+    (when (cond
+           ((and force (not (eq force 'no-check)))
+            ;; Force killing Emacs.
+            t)
+           ((or (eq force 'no-check) (not exwm--id-buffer-alist))
+            ;; Check if there's any unsaved file.
+            (pcase (catch 'break
+                     (let ((kill-emacs-query-functions
+                            (append kill-emacs-query-functions
+                                    (list (lambda ()
+                                            (throw 'break 'break))))))
+                       (save-buffers-kill-emacs)))
+              (`break (y-or-n-p prompt))
+              (x x)))
+           (t
+            (yes-or-no-p (format "[EXWM] %d window(s) will be destroyed.  %s"
+                                 (length exwm--id-buffer-alist) prompt))))
+      ;; Run `kill-emacs-hook' (`server-force-stop' excluded) before Emacs
+      ;; frames are unmapped so that errors (if any) can be visible.
+      (if (memq #'server-force-stop kill-emacs-hook)
+          (progn
+            (setq kill-emacs-hook (delq #'server-force-stop kill-emacs-hook))
+            (run-hooks 'kill-emacs-hook)
+            (setq kill-emacs-hook (list #'server-force-stop)))
+        (run-hooks 'kill-emacs-hook)
+        (setq kill-emacs-hook nil))
+      ;; Exit each module, destroying all resources created by this connection.
+      (exwm-exit)
+      ;; Set the return value.
+      t))
+
+  
+
+  (provide 'exwm)
+
+  ;;; exwm.el ends here
+#+end_src
